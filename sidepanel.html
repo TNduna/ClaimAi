@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ClaimAi</title>
+  <style>
+    body {
+      width: 360px;
+      margin: 0;
+      padding: 14px;
+      background-color: #18181b;
+      color: #f4f4f5;
+      font-family: system-ui, -apple-system, sans-serif;
+      line-height: 1.45;
+    }
+    .header {
+      font-size: 24px;
+      font-weight: bold;
+      color: #34d399;
+      margin-bottom: 16px;
+    }
+    .patient-context {
+      background: #27272a;
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 16px;
+    }
+    .gender-btn {
+      padding: 8px 20px;
+      border-radius: 8px;
+      background: #3f3f46;
+      border: none;
+      color: white;
+      cursor: pointer;
+      font-weight: 500;
+      transition: background 0.15s, color 0.15s;
+    }
+    .gender-btn.active {
+      background: #34d399;
+      color: black;
+      font-weight: bold;
+    }
+    input[type="number"] {
+      background: #18181b;
+      border: 1px solid #3f3f46;
+      color: white;
+      padding: 10px;
+      border-radius: 8px;
+      font-size: 14px;
+    }
+    input[type="number"]:focus {
+      outline: none;
+      border-color: #34d399;
+    }
+    .card {
+      background-color: #27272a;
+      border: 1px solid #3f3f46;
+      border-radius: 14px;
+      padding: 18px;
+      margin-bottom: 14px;
+    }
+    .code {
+      font-size: 28px;
+      font-weight: bold;
+      color: #34d399;
+      margin-bottom: 6px;
+      word-break: break-all;
+    }
+    p {
+      margin: 6px 0 10px 0;
+      word-break: break-word;
+      overflow-wrap: break-word;
+    }
+    .pmb-box {
+      background-color: #14532d;
+      border: 1px solid #34d399;
+      border-radius: 12px;
+      padding: 14px;
+      margin-top: 14px;
+    }
+
+    /* ── Utility classes used by sidepanel.js ── */
+    .mt-1 { margin-top: 4px; }
+    .mt-2 { margin-top: 8px; }
+    .mt-3 { margin-top: 12px; }
+    .mt-4 { margin-top: 16px; }
+    .mb-1 { margin-bottom: 4px; }
+    .mb-2 { margin-bottom: 8px; }
+    .mb-3 { margin-bottom: 12px; }
+    .p-3  { padding: 12px; }
+    .p-4  { padding: 16px; }
+    .my-2 { margin-top: 8px; margin-bottom: 8px; }
+    .flex              { display: flex; }
+    .items-center      { align-items: center; }
+    .gap-2             { gap: 8px; }
+    .rounded-xl  { border-radius: 12px; }
+    .rounded-2xl { border-radius: 16px; }
+    .text-xs       { font-size: 11px; }
+    .text-sm       { font-size: 13px; }
+    .text-lg       { font-size: 18px; }
+    .font-medium   { font-weight: 500; }
+    .font-semibold { font-weight: 600; }
+    .font-bold     { font-weight: 700; }
+    .leading-relaxed { line-height: 1.625; }
+    .text-white        { color: #ffffff; }
+    .text-zinc-200     { color: #e4e4e7; }
+    .text-zinc-400     { color: #a1a1aa; }
+    .text-emerald-400  { color: #34d399; }
+    .text-emerald-300  { color: #6ee7b7; }
+    .text-amber-300    { color: #fcd34d; }
+    .text-amber-400    { color: #fbbf24; }
+    .text-orange-100   { color: #ffedd5; }
+    .text-orange-400   { color: #fb923c; }
+    .text-red-100      { color: #fee2e2; }
+    .text-red-300      { color: #fca5a5; }
+    .text-red-400      { color: #f87171; }
+    .bg-zinc-900       { background-color: #18181b; }
+    .bg-orange-950     { background-color: #431407; }
+    .bg-red-950        { background-color: #450a0a; }
+    .border            { border-style: solid; border-width: 1px; }
+    .border-orange-500 { border-color: #f97316; }
+    .border-red-600    { border-color: #dc2626; }
+    .border-red-700    { border-color: #b91c1c; }
+    .border-red-800    { border-color: #991b1b; }
+    hr.border-red-800 {
+      border: none;
+      border-top: 1px solid #991b1b;
+      margin: 8px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">ClaimAi</div>
+
+  <div class="patient-context">
+    <div style="margin-bottom: 8px; font-size: 13px; color: #a1a1aa;">PATIENT CONTEXT</div>
+
+    <div style="display: flex; gap: 8px; align-items: center;">
+      <input type="number" id="age" placeholder="Age (years)" min="0" max="120" step="1">
+
+      <div style="display: flex; gap: 6px;">
+        <button class="gender-btn" id="male">M</button>
+        <button class="gender-btn" id="female">F</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="result"></div>
+
+  <script src="sidepanel.js"></script>
+</body>
+</html>

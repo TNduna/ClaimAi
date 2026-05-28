@@ -1,0 +1,19 @@
+{
+  "G01*": { "type": "asterisk", "pairedWith": ["A17.0"], "note": "Tuberculous meningitis" },
+  "M01.1*": { "type": "asterisk", "pairedWith": ["A18.0"], "note": "Tuberculous arthritis" },
+  "K67.3*": { "type": "asterisk", "pairedWith": ["A18.3"], "note": "Tuberculous peritonitis" },
+  "H32*": { "type": "asterisk", "pairedWith": ["A18.5"], "note": "Tuberculous chorioretinitis" },
+  "N33.8*": { "type": "asterisk", "pairedWith": ["A18.1"], "note": "Tuberculous cystitis" },
+  "I39*": { "type": "asterisk", "pairedWith": ["A18.8"], "note": "Tuberculous endocarditis" },
+  "D63.8*": { "type": "asterisk", "pairedWith": ["C81-C96"], "note": "Anaemia in neoplastic disease" },
+  "E35*": { "type": "asterisk", "pairedWith": ["E10-E14"], "note": "Disorders of endocrine glands in diseases classified elsewhere" },
+  "G63.0*": { "type": "asterisk", "pairedWith": ["E10-E14"], "note": "Diabetic polyneuropathy" },
+  "G63.8*": { "type": "asterisk", "pairedWith": ["A18"], "note": "Polyneuropathy in other diseases" },
+  "I32*": { "type": "asterisk", "pairedWith": ["A18"], "note": "Pericarditis in diseases classified elsewhere" },
+  "I79*": { "type": "asterisk", "pairedWith": ["A18"], "note": "Disorders of arteries in diseases classified elsewhere" },
+  "J17*": { "type": "asterisk", "pairedWith": ["A18"], "note": "Pneumonia in diseases classified elsewhere" },
+  "K77*": { "type": "asterisk", "pairedWith": ["A18"], "note": "Liver disorders in diseases classified elsewhere" },
+  "M90*": { "type": "asterisk", "pairedWith": ["A18"], "note": "Osteopathies in diseases classified elsewhere" },
+  "N16*": { "type": "asterisk", "pairedWith": ["A18"], "note": "Renal tubulo-interstitial disorders in diseases classified elsewhere" },
+  "N51*": { "type": "asterisk", "pairedWith": ["A18"], "note": "Disorders of male genital organs in diseases classified elsewhere" }
+}

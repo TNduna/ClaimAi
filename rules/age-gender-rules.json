@@ -1,0 +1,30 @@
+{
+  "P00-P96": {
+    "ageMax": 0.076,
+    "description": "Certain conditions originating in the perinatal period (0-28 days)"
+  },
+  "Q00-Q99": {
+    "ageMax": 18,
+    "description": "Congenital malformations, deformations and chromosomal abnormalities"
+  },
+  "N40-N51": {
+    "gender": "M",
+    "description": "Male genital organs diseases"
+  },
+  "N70-N77": {
+    "gender": "F",
+    "description": "Inflammatory diseases of female pelvic organs"
+  },
+  "C61": {
+    "gender": "M",
+    "description": "Malignant neoplasm of prostate"
+  },
+  "C50": {
+    "gender": "F",
+    "description": "Malignant neoplasm of breast"
+  },
+  "O00-O99": {
+    "gender": "F",
+    "description": "Pregnancy, childbirth and the puerperium"
+  }
+}

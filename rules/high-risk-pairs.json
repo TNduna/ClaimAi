@@ -1,0 +1,34 @@
+[
+  {
+    "codes": ["C61", "O00-O99"],
+    "reason": "Prostate cancer cannot be billed with pregnancy/childbirth codes"
+  },
+  {
+    "codes": ["N40", "O00-O99"],
+    "reason": "Male genital condition cannot be billed with pregnancy codes"
+  },
+  {
+    "codes": ["Z34", "Z30"],
+    "reason": "Antenatal care and contraceptive management should not be billed together"
+  },
+  {
+    "codes": ["E11", "E10"],
+    "reason": "Type 1 and Type 2 diabetes should not be billed simultaneously"
+  },
+  {
+    "codes": ["Z38", "Z37"],
+    "reason": "Liveborn infant and outcome of delivery should not be billed together on same claim"
+  },
+  {
+    "codes": ["F10", "F11"],
+    "reason": "Multiple substance use disorders require separate claims"
+  },
+  {
+    "codes": ["I21", "I22"],
+    "reason": "Acute MI and subsequent MI should not appear on same single-day claim"
+  },
+  {
+    "codes": ["S00", "T36"],
+    "reason": "Superficial injury and drug poisoning are unlikely primary diagnoses together"
+  }
+]

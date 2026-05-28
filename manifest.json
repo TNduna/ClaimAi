@@ -1,0 +1,42 @@
+{
+  "manifest_version": 3,
+  "name": "ClaimAi",
+  "version": "1.0.0",
+  "description": "Intelligent ICD-10 coding assistant for South African medical schemes",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "permissions": [
+    "storage",
+    "contextMenus",
+    "sidePanel",
+    "unlimitedStorage"
+  ],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "css": ["inject.css"],
+      "run_at": "document_end"
+    }
+  ],
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "ClaimAi"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["ICD-10-CM/*.json", "lib/*.js", "rules/*.json"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

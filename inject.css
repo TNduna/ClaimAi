@@ -1,0 +1,17 @@
+/* inject.css */
+@import url('https://cdn.tailwindcss.com');
+
+.claimai-container {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.claimai-badge {
+  position: absolute;
+  z-index: 999999;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 600;
+  pointer-events: none;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
