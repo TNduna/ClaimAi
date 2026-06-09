@@ -1,17 +1,41 @@
 /* inject.css */
-@import url('https://cdn.tailwindcss.com');
 
 .claimai-container {
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 .claimai-badge {
-  position: absolute;
-  z-index: 999999;
-  padding: 2px 8px;
+  position: fixed;
+  z-index: 2147483647;
+  padding: 6px 12px;
   border-radius: 9999px;
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 700;
   pointer-events: none;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  opacity: 0;
+  transform: translateY(-8px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+}
+
+.claimai-badge.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.claimai-badge.valid {
+  background: #16a34a;
+  color: white;
+}
+
+.claimai-badge.invalid {
+  background: #dc2626;
+  color: white;
+}
+
+.claimai-badge .badge-icon {
+  font-size: 14px;
 }

@@ -4,28 +4,51 @@ console.log('%cClaimAi Content Script Loaded ✅', 'color: #10b981; font-weight:
 let icd10Index = {};
 let pmbIndex = {};
 
-async function loadData() {
-  try {
-    // Load ICD-10
-    const icdRes = await fetch(chrome.runtime.getURL('ICD-10-CM/diagnosis_codes.json'));
-    const icdData = await icdRes.json();
+function normalizeCode(code) {
+  return code.trim().toUpperCase().replace(/\s+/g, '');
+}
 
-    // Load PMB
-    const pmbRes = await fetch(chrome.runtime.getURL('rules/pmb-linkages.json'));
-    pmbIndex = await pmbRes.json();
+function getCodeVariants(code) {
+  const clean = normalizeCode(code);
+  const variants = new Set([clean]);
+  if (clean.includes('.')) {
+    variants.add(clean.replace(/\./g, ''));
+  } else if (clean.length > 3) {
+    variants.add(`${clean.slice(0, 3)}.${clean.slice(3)}`);
+  }
+  return Array.from(variants);
+}
 
-    // Build ICD index
-    function traverse(node) {
-      if (!node) return;
-      let code = (node.code || node.icd_code || '').toString().trim().toUpperCase();
-      if (code) icd10Index[code] = { d: node.desc_full || node.desc || "" };
-      if (Array.isArray(node.children)) node.children.forEach(traverse);
+function lookupIndex(index, code) {
+  for (const variant of getCodeVariants(code)) {
+    if (index && index[variant]) return index[variant];
+  }
+  return null;
+}
+
+function normalizeSourceIndex(rawIndex) {
+  const normalized = {};
+  for (const rawKey of Object.keys(rawIndex)) {
+    const baseKey = normalizeCode(rawKey.split('+')[0]);
+    const variants = getCodeVariants(baseKey);
+    for (const variant of variants) {
+      if (!normalized[variant]) {
+        normalized[variant] = rawIndex[rawKey];
+      }
     }
-    icdData.forEach(traverse);
+  }
+  return normalized;
+}
 
-    console.log(`✅ Loaded ${Object.keys(icd10Index).length} ICD + ${Object.keys(pmbIndex).length} PMB`);
+async function loadICDData() {
+  try {
+    const module = await import(chrome.runtime.getURL('lib/icd10-index.js'));
+    icd10Index = module.icd10Index || module.default || {};
+    const pmbRes = await fetch(chrome.runtime.getURL('rules/pmb-linkages.json'));
+    pmbIndex = normalizeSourceIndex(await pmbRes.json());
+    console.log(`✅ Real-time loaded ${Object.keys(icd10Index).length} ICD codes and ${Object.keys(pmbIndex).length} normalized PMB entries`);
   } catch (e) {
-    console.error("Load error:", e);
+    console.error("Failed to load ICD or PMB data", e);
   }
 }
 
@@ -35,110 +58,116 @@ class ClaimAiContent {
   }
 
   async init() {
-    await loadData();
+    await loadICDData();
     this.setupInputMonitoring();
   }
 
   setupInputMonitoring() {
-    const observer = new MutationObserver(() => {
-      document.querySelectorAll('input, textarea').forEach(input => {
-        if (input.dataset.claimaiAttached) return;
-        input.dataset.claimaiAttached = true;
+    const selector = 'input, textarea, [contenteditable]:not([contenteditable="false"])';
+    const attach = (element) => {
+      if (element.dataset.claimaiAttached) return;
+      element.dataset.claimaiAttached = true;
 
-        input.addEventListener('input', (e) => this.handleInput(e));
-        input.addEventListener('blur', () => this.removeBadge());
-      });
+      element.addEventListener('input', (e) => this.handleInput(e));
+      element.addEventListener('blur', () => this.removeBadge());
+    };
+
+    const observer = new MutationObserver(() => {
+      document.querySelectorAll(selector).forEach(attach);
     });
 
-    observer.observe(document.body, { childList: true, subtree: true });
+    if (document.body) {
+      document.querySelectorAll(selector).forEach(attach);
+      observer.observe(document.body, { childList: true, subtree: true });
+    } else {
+      const rootObserver = new MutationObserver(() => {
+        if (document.body) {
+          document.querySelectorAll(selector).forEach(attach);
+          observer.observe(document.body, { childList: true, subtree: true });
+          rootObserver.disconnect();
+        }
+      });
+      rootObserver.observe(document.documentElement, { childList: true, subtree: true });
+    }
   }
 
   handleInput(e) {
-    const value = e.target.value.trim().toUpperCase();
+    const raw = e.target.value !== undefined ? e.target.value : e.target.textContent;
+    const value = (raw || '').trim().toUpperCase();
     if (!/^[A-Z]\d{2}/.test(value)) return;
 
     this.removeBadge();
 
     let cleanCode = value.replace(/\s+/g, '');
-    const icdData = icd10Index[cleanCode] || 
-                    icd10Index[cleanCode.replace('.', '')] ||
-                    icd10Index[cleanCode.replace(/(\w{3})(\d)/, '$1.$2')];
-    const isPMB = !!pmbIndex[cleanCode] || !!pmbIndex[cleanCode.replace('.', '')];
+    const icdMatch = lookupIndex(icd10Index, cleanCode);
+    const pmbMatch = lookupIndex(pmbIndex, cleanCode);
+    const validMatch = icdMatch || pmbMatch;
 
-    if (icdData) {
-      this.showValidBadge(e.target, cleanCode, isPMB);
-      
-      // Send live update to side panel if it's open
-      try {
-        chrome.runtime.sendMessage({
-          action: "liveUpdate",
-          code: cleanCode
-        });
-      } catch (e) {
-        // Ignore - normal when extension is reloaded
-        // console.log("Side panel not connected");
+    if (validMatch) {
+      if (pmbMatch && !icdMatch) {
+        this.showPmbBadge(e.target, cleanCode);
+      } else {
+        this.showValidBadge(e.target, cleanCode);
       }
-    } else if (value.length >= 5) {
+
+      chrome.runtime.sendMessage({
+        action: "liveUpdate",
+        code: cleanCode
+      }, () => {
+        if (chrome.runtime.lastError) {
+          console.warn('ClaimAi liveUpdate message failed:', chrome.runtime.lastError.message);
+        } else {
+          console.log('ClaimAi liveUpdate sent:', cleanCode);
+        }
+      });
+    } else if (value.length >= 4) {
       this.showInvalidBadge(e.target);
     }
   }
 
-  showValidBadge(input, code, isPMB) {
+  showValidBadge(input, code) {
     const badge = document.createElement('div');
-    badge.className = 'claimai-badge';
-    
-    if (isPMB) {
-      badge.textContent = '🛡️ PMB';
-      badge.style.background = '#10b981';
-    } else {
-      badge.textContent = '✓ VALID';
-      badge.style.background = '#3b82f6';
-    }
-
-    badge.style.cssText += `
-      position: fixed;
-      color: white;
-      font-size: 12px;
-      font-weight: bold;
-      padding: 4px 10px;
-      border-radius: 9999px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-      z-index: 2147483647;
-      pointer-events: none;
-      white-space: nowrap;
-    `;
-
-    const rect = input.getBoundingClientRect();
-    badge.style.top = `${rect.top - 34}px`;
-    badge.style.left = `${rect.left + 8}px`;
-
+    badge.className = 'claimai-badge valid';
+    badge.innerHTML = `<span class="badge-icon">✓</span><span>VALID: ${code}</span>`;
+    this.placeBadge(badge, input);
     document.body.appendChild(badge);
-    setTimeout(() => badge.remove(), 2800);
+    requestAnimationFrame(() => badge.classList.add('show'));
+    setTimeout(() => {
+      badge.classList.remove('show');
+      setTimeout(() => badge.remove(), 180);
+    }, 2500);
   }
 
   showInvalidBadge(input) {
     const badge = document.createElement('div');
-    badge.className = 'claimai-badge';
-    badge.textContent = '✗ UNKNOWN';
-    badge.style.cssText = `
-      position: fixed;
-      background: #ef4444;
-      color: white;
-      font-size: 12px;
-      font-weight: bold;
-      padding: 4px 10px;
-      border-radius: 9999px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-      z-index: 2147483647;
-      pointer-events: none;
-    `;
-
-    const rect = input.getBoundingClientRect();
-    badge.style.top = `${rect.top - 34}px`;
-    badge.style.left = `${rect.left + 8}px`;
-
+    badge.className = 'claimai-badge invalid';
+    badge.innerHTML = `<span class="badge-icon">✗</span><span>UNKNOWN CODE</span>`;
+    this.placeBadge(badge, input);
     document.body.appendChild(badge);
-    setTimeout(() => badge.remove(), 2200);
+    requestAnimationFrame(() => badge.classList.add('show'));
+    setTimeout(() => {
+      badge.classList.remove('show');
+      setTimeout(() => badge.remove(), 180);
+    }, 2200);
+  }
+
+  showPmbBadge(input, code) {
+    const badge = document.createElement('div');
+    badge.className = 'claimai-badge valid';
+    badge.innerHTML = `<span class="badge-icon">🛡️</span><span>PMB ELIGIBLE: ${code}</span>`;
+    this.placeBadge(badge, input);
+    document.body.appendChild(badge);
+    requestAnimationFrame(() => badge.classList.add('show'));
+    setTimeout(() => {
+      badge.classList.remove('show');
+      setTimeout(() => badge.remove(), 180);
+    }, 2800);
+  }
+
+  placeBadge(badge, input) {
+    const rect = input.getBoundingClientRect();
+    badge.style.top = `${Math.max(8, rect.top - 36)}px`;
+    badge.style.left = `${Math.max(8, rect.left)}px`;
   }
 
   removeBadge() {
@@ -146,5 +175,4 @@ class ClaimAiContent {
   }
 }
 
-// Start
 new ClaimAiContent();

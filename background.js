@@ -13,14 +13,22 @@ chrome.runtime.onInstalled.addListener(() => {
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId === "claimai-lookup" && info.selectionText) {
     const selectedText = info.selectionText.trim();
-    
+    console.log('ClaimAi context lookup clicked:', selectedText);
+
     chrome.sidePanel.open({ tabId: tab.id });
-    
+
     // Give side panel time to open
     setTimeout(() => {
+      console.log('ClaimAi sending lookup message to side panel:', selectedText);
       chrome.runtime.sendMessage({
         action: "lookup",
         code: selectedText
+      }, () => {
+        if (chrome.runtime.lastError) {
+          console.warn('ClaimAi lookup message failed:', chrome.runtime.lastError.message);
+        } else {
+          console.log('ClaimAi lookup message delivered');
+        }
       });
     }, 400);
   }

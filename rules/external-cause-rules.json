@@ -1,0 +1,42 @@
+{
+  "S00-S09": {
+    "category": "Head Injuries",
+    "suggestions": ["V00-V09", "W00-W19", "X00-X09"],
+    "examples": ["W10 - Fall on and from stairs", "V23 - Motorcycle rider injured in collision", "X59 - Accidental exposure to other unspecified factors"]
+  },
+  "S10-S19": {
+    "category": "Neck Injuries",
+    "suggestions": ["W00-W19"],
+    "examples": ["W06 - Fall from chair", "W18 - Fall on same level"]
+  },
+  "S40-S49": {
+    "category": "Shoulder & Upper Arm",
+    "suggestions": ["W00-W19", "W50-W54"],
+    "examples": ["W01 - Fall on same level", "W50 - Hit, struck by another person"]
+  },
+  "S50-S59": {
+    "category": "Elbow & Forearm",
+    "suggestions": ["W20-W49"],
+    "examples": ["W22 - Striking against stationary object", "W25 - Contact with sharp glass"]
+  },
+  "S70-S79": {
+    "category": "Hip & Thigh",
+    "suggestions": ["W00-W19"],
+    "examples": ["W01 - Fall on same level", "W10 - Fall on and from stairs"]
+  },
+  "S80-S89": {
+    "category": "Knee & Lower Leg",
+    "suggestions": ["W00-W19"],
+    "examples": ["W10 - Fall on and from stairs", "W19 - Unspecified fall"]
+  },
+  "S90-S99": {
+    "category": "Ankle & Foot",
+    "suggestions": ["W00-W19"],
+    "examples": ["W01 - Fall on same level", "W18 - Fall on same level - other"]
+  },
+  "T": {
+    "category": "Poisoning & External Causes",
+    "suggestions": ["X40-X49", "X60-X69"],
+    "examples": ["X42 - Accidental poisoning by narcotics", "X68 - Intentional self-harm by pesticide"]
+  }
+}
