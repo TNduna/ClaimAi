@@ -9,7 +9,11 @@
 <body>
   <div class="container">
     <h1>ClaimAi</h1>
-    <p>Ready to assist.</p>
+    <p id="status-indicator">Initializing...</p>
+    <div style="margin-top:8px">
+      <input id="quick-lookup" type="text" placeholder="Quick ICD lookup (e.g. A17.0)" />
+      <div id="lookup-results" style="margin-top:8px;font-size:13px;color:#333"></div>
+    </div>
   </div>
   <script src="popup.js"></script>
 </body>

@@ -36,6 +36,20 @@
   color: white;
 }
 
+/* PMB specific badge look */
+.claimai-badge.pmb {
+  background: #14532d; /* darker green */
+  color: #e6f9ef;
+  border: 1px solid rgba(255,255,255,0.04);
+}
+
+/* Small pill modifier */
+.claimai-badge.pmb::after {
+  content: ' PMB';
+  font-weight: 700;
+  margin-left: 6px;
+}
+
 .claimai-badge .badge-icon {
   font-size: 14px;
 }

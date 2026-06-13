@@ -4,6 +4,7 @@ let pmbIndex = {};
 let daggerAsteriskIndex = {};
 let ageGenderRules = {};
 let externalCauseRules = {};
+let dbInstance = null;
 
 let patientAge = null;
 let patientGender = null;
@@ -12,38 +13,37 @@ let pendingLookup = null;
 
 async function loadData() {
   try {
-    // Load new clean CDC dataset from the single canonical location
-    const mod = await import(chrome.runtime.getURL('lib/icd10-index.js'));
-    if (mod) {
+    // Load JS index and rules into memory (no direct DB initialization from sidepanel)
+    try {
+      const mod = await import(chrome.runtime.getURL('lib/icd10-index.js'));
       icd10Index = mod.icd10Index || mod.default || mod || {};
+    } catch (err) {
+      // fallback to JSON if needed
+      try {
+        const resp = await fetch(chrome.runtime.getURL('lib/icd10-index.json'));
+        if (resp.ok) icd10Index = await resp.json();
+      } catch (e) {
+        console.warn('Failed to load icd10 index for sidepanel:', e);
+      }
     }
-    if (!icd10Index || !Object.keys(icd10Index).length) {
-      console.warn('ICD index loaded but empty from lib/icd10-index.js');
-    } else {
-      console.log(`Loaded ICD index (${Object.keys(icd10Index).length} codes) from lib/icd10-index.js`);
-    }
 
-    // Load rules
-    const pmbRes = await fetch(chrome.runtime.getURL('rules/pmb-linkages.json'));
-    pmbIndex = normalizeSourceIndex(await pmbRes.json());
+    const pmbRes2 = await fetch(chrome.runtime.getURL('rules/pmb-linkages.json'));
+    pmbIndex = normalizeSourceIndex(await pmbRes2.json());
+    const daRes2 = await fetch(chrome.runtime.getURL('rules/dagger-asterisk-pairs.json'));
+    daggerAsteriskIndex = normalizeSourceIndex(await daRes2.json());
+    const agRes2 = await fetch(chrome.runtime.getURL('rules/age-gender-rules.json'));
+    ageGenderRules = await agRes2.json();
+    const ecRes2 = await fetch(chrome.runtime.getURL('rules/external-cause-rules.json'));
+    externalCauseRules = await ecRes2.json();
 
-    const daRes = await fetch(chrome.runtime.getURL('rules/dagger-asterisk-pairs.json'));
-    daggerAsteriskIndex = normalizeSourceIndex(await daRes.json());
-
-    const agRes = await fetch(chrome.runtime.getURL('rules/age-gender-rules.json'));
-    ageGenderRules = await agRes.json();
-
-    const ecRes = await fetch(chrome.runtime.getURL('rules/external-cause-rules.json'));
-    externalCauseRules = await ecRes.json();
-
-    console.log(`✅ ClaimAi loaded ${Object.keys(icd10Index).length} ICD-10 codes (CDC 2026)`);
+    console.log(`Loaded ICD index (${Object.keys(icd10Index).length} codes) into memory`);
     dataLoaded = true;
     if (pendingLookup) {
       showResult(pendingLookup);
       pendingLookup = null;
     }
   } catch (e) {
-    console.error("Data load error:", e);
+    console.error('Data load error:', e);
   }
 }
 
@@ -113,12 +113,22 @@ function checkExternalCause(code) {
   return externalCauseRules["T"];
 }
 
-function showResult(code) {
+async function showResult(code) {
   const resultDiv = document.getElementById('result');
   let cleanCode = normalizeCode(code);
 
-  const icdData = lookupIndex(icd10Index, cleanCode);
-  const pmbData = lookupIndex(pmbIndex, cleanCode);
+  let icdData = null;
+  let pmbData = null;
+  if (dbInstance) {
+    for (const variant of getCodeVariants(cleanCode)) {
+      if (!icdData) icdData = await dbInstance.getICD(variant);
+      if (!pmbData) pmbData = pmbIndex[variant] || await dbInstance.getPMB(variant);
+      if (icdData && pmbData) break;
+    }
+  } else {
+    icdData = lookupIndex(icd10Index, cleanCode);
+    pmbData = lookupIndex(pmbIndex, cleanCode);
+  }
   const daData = lookupIndex(daggerAsteriskIndex, cleanCode + '*') || lookupIndex(daggerAsteriskIndex, cleanCode);
   const agCheck = checkAgeGender(cleanCode);
   const ecCheck = checkExternalCause(cleanCode);
@@ -180,20 +190,47 @@ document.addEventListener('DOMContentLoaded', () => {
   const ageInput = document.getElementById('age');
   const maleBtn = document.getElementById('male');
   const femaleBtn = document.getElementById('female');
+  const liveToggle = document.getElementById('live-toggle');
 
-  ageInput.addEventListener('input', () => patientAge = parseInt(ageInput.value) || null);
+  if (ageInput) {
+    ageInput.addEventListener('input', () => patientAge = parseInt(ageInput.value) || null);
+  }
 
-  maleBtn.addEventListener('click', () => {
-    patientGender = 'M';
-    maleBtn.classList.add('active');
-    femaleBtn.classList.remove('active');
-  });
+  if (maleBtn && femaleBtn) {
+    maleBtn.addEventListener('click', () => {
+      patientGender = 'M';
+      maleBtn.classList.add('active');
+      femaleBtn.classList.remove('active');
+    });
 
-  femaleBtn.addEventListener('click', () => {
-    patientGender = 'F';
-    femaleBtn.classList.add('active');
-    maleBtn.classList.remove('active');
-  });
+    femaleBtn.addEventListener('click', () => {
+      patientGender = 'F';
+      femaleBtn.classList.add('active');
+      maleBtn.classList.remove('active');
+    });
+  }
+
+  if (liveToggle) {
+    // initialize state: default off
+    liveToggle.checked = false;
+    liveToggle.addEventListener('change', async () => {
+      const enabled = !!liveToggle.checked;
+      // find currently active tab to associate live mode with
+      try {
+        const tabs = await new Promise((resolve) => chrome.tabs.query({ active: true, currentWindow: true }, resolve));
+        const tabId = tabs && tabs[0] && tabs[0].id;
+        if (tabId) {
+          chrome.runtime.sendMessage({ action: 'SET_LIVE_MODE', tabId: tabId, enabled }, (resp) => {
+            if (chrome.runtime.lastError) {
+              console.warn('Failed to set live mode:', chrome.runtime.lastError);
+            }
+          });
+        }
+      } catch (e) {
+        console.warn('Unable to set live mode:', e);
+      }
+    });
+  }
 });
 
 // Live updates
@@ -206,6 +243,87 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
       pendingLookup = msg.code;
     }
   }
+
+  if (msg.action === 'LOAD_SELECTED_CODE' && msg.code) {
+    chrome.runtime.sendMessage({ action: 'QUERY_CODE', code: msg.code }, (response) => {
+      if (response && response.data) {
+        renderDetails(response.data);
+      } else {
+        renderUnknown(msg.code);
+      }
+    });
+    return true;
+  }
 });
 
 loadData();
+
+function renderDetails(data) {
+  const titleEl = document.getElementById('code-title');
+  const descEl = document.getElementById('code-description');
+  const pmbEl = document.getElementById('pmb-status');
+  const card = document.getElementById('code-card');
+
+  const code = data.code || data.displayCode || '';
+  const description = data.description || data.d || data.icdDescription || 'No description available.';
+
+  if (titleEl) titleEl.textContent = code;
+  if (descEl) descEl.textContent = description;
+  if (pmbEl) {
+    if (data.pmbCode) {
+      pmbEl.textContent = `PMB Eligible (${data.pmbCode})`;
+      pmbEl.className = 'mt-3 text-emerald-400 text-sm';
+    } else {
+      pmbEl.textContent = 'Not PMB Eligible';
+      pmbEl.className = 'mt-3 text-zinc-400 text-sm';
+    }
+  }
+  if (card) card.style.display = '';
+}
+
+function renderUnknown(code) {
+  const titleEl = document.getElementById('code-title');
+  const descEl = document.getElementById('code-description');
+  const pmbEl = document.getElementById('pmb-status');
+  const card = document.getElementById('code-card');
+
+  if (titleEl) titleEl.textContent = code;
+  if (descEl) descEl.textContent = 'Unknown or unsupported code.';
+  if (pmbEl) {
+    pmbEl.textContent = 'Unknown';
+    pmbEl.className = 'status-badge unknown';
+  }
+  if (card) card.style.display = '';
+}
+
+/**
+ * Render clickable suggestion pills that can inject codes into the active page.
+ * @param {string[]} suggestions
+ * @param {string} targetElementId
+ */
+function renderSuggestions(suggestions, targetElementId) {
+  const listElement = document.getElementById(targetElementId);
+  if (!listElement) return;
+  listElement.innerHTML = '';
+
+  suggestions.forEach(suggestedCode => {
+    const item = document.createElement('button');
+    item.className = 'suggestion-pill';
+    item.innerText = `+ Append ${suggestedCode}`;
+
+    item.addEventListener('click', () => {
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (!tabs || !tabs[0]) return;
+        chrome.tabs.sendMessage(tabs[0].id, {
+          action: 'INJECT_CODE',
+          code: suggestedCode
+        });
+      });
+    });
+
+    listElement.appendChild(item);
+  });
+}
+
+// expose for other scripts if needed
+self.renderSuggestions = renderSuggestions;

@@ -7,13 +7,15 @@
   <title>ClaimAi</title>
   <style>
     body {
-      width: 360px;
+      width: 320px;
+      max-width: 320px;
       margin: 0;
-      padding: 14px;
+      padding: 12px;
       background-color: #18181b;
       color: #f4f4f5;
       font-family: system-ui, -apple-system, sans-serif;
       line-height: 1.45;
+      box-sizing: border-box;
     }
 
     .header {
@@ -271,7 +273,13 @@
 </head>
 
 <body>
-  <div class="header">ClaimAi</div>
+  <div style="display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px;">
+    <div class="header">ClaimAi</div>
+    <div style="display:flex; flex-wrap:wrap; align-items:center; gap:8px;">
+      <label for="live-toggle" style="font-size:13px;color:#a1a1aa; white-space:nowrap;">Live</label>
+      <input type="checkbox" id="live-toggle" title="Toggle live updating from page input">
+    </div>
+  </div>
 
   <div class="patient-context">
     <div style="margin-bottom: 8px; font-size: 13px; color: #a1a1aa;">PATIENT CONTEXT</div>
@@ -286,7 +294,13 @@
     </div>
   </div>
 
-  <div id="result"></div>
+  <div id="result">
+    <div class="card" id="code-card" style="display:none;">
+      <div class="code" id="code-title">—</div>
+      <div id="code-description" class="text-zinc-200">Select or lookup a code to see details.</div>
+      <div id="pmb-status" class="mt-3 text-sm text-zinc-400">PMB status unknown</div>
+    </div>
+  </div>
 
   <script src="sidepanel.js"></script>
 </body>
