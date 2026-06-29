@@ -300,32 +300,43 @@ if (typeof chrome !== 'undefined' && chrome.runtime) {
       try {
         const variants = buildLookupVariants(rawCode);
         let record = null;
-        let matchedKey = null;
+        let recordMatchedKey = null;
 
         for (const variant of variants) {
           record = await dbInstance.getCode(variant);
-          if (record) { matchedKey = variant; break; }
+          if (record) {
+            recordMatchedKey = variant;
+            break;
+          }
         }
 
-        // Determine the best display code: prefer dotted form from matched key
+        // PMB check: find if any variant matches in the PMB map
+        let pmbEntry = null;
+        let pmbMatchedKey = null;
+        for (const variant of variants) {
+          if (pmb[variant]) {
+            pmbEntry = pmb[variant];
+            pmbMatchedKey = variant;
+            break;
+          }
+        }
+        const pmbEligible = !!pmbEntry;
+        const matchedKey = recordMatchedKey || pmbMatchedKey;
+
+        // Determine the best display code
         const displayRaw = (() => {
           if (!matchedKey) return rawCode;
-          // If matched key is dotted use it; otherwise reconstruct dotted form
           if (matchedKey.includes('.')) return matchedKey;
           const u = matchedKey;
           return u.length > 3 ? `${u.slice(0, 3)}.${u.slice(3)}` : u;
         })();
 
-        // PMB check: look up all variants in the PMB map
-        const pmbEntry = variants.reduce((found, v) => found || pmb[v] || null, null);
-        const pmbEligible = !!pmbEntry;
-
-        if (record) {
+        if (record || pmbEligible) {
           results.push({
             raw: displayRaw,
             normalized: matchedKey,
             isValid: true,
-            description: record.description || record.d || record.icdDescription || '',
+            description: (record && (record.description || record.d)) || (pmbEntry && (pmbEntry.pmbDescription || pmbEntry.icdDescription)) || 'PMB Eligible ICD-10 Code.',
             pmbEligible,
             pmbCode: pmbEntry && pmbEntry.pmbCode ? pmbEntry.pmbCode : null
           });
@@ -371,7 +382,22 @@ if (typeof chrome !== 'undefined' && chrome.runtime) {
         const rec = await db.getCode(variant);
         if (rec) return rec;
       }
-      // fallback: fetch JSON and try all variants
+      
+      // Fallback: check PMB linkages map
+      const pmb = await ensurePmbMap();
+      for (const variant of variants) {
+        if (pmb[variant]) {
+          const pmbEntry = pmb[variant];
+          return {
+            code: variant,
+            displayCode: variant,
+            description: pmbEntry.pmbDescription || pmbEntry.icdDescription || 'PMB Eligible ICD-10 Code',
+            pmbCode: pmbEntry.pmbCode || null
+          };
+        }
+      }
+
+      // Fallback: fetch JSON and try all variants
       const response = await fetch(chrome.runtime.getURL('lib/icd10-index.json'));
       if (!response.ok) throw new Error('Failed to load ICD-10 index');
       const index = await response.json();
