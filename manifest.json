@@ -35,7 +35,7 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["ICD-10-CM/*.json", "lib/*.js", "rules/*.json"],
+      "resources": ["ICD-10-CM/*.json", "lib/*.js", "lib/*.json", "rules/*.json"],
       "matches": ["<all_urls>"]
     }
   ]

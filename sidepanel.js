@@ -4,12 +4,14 @@ let pmbIndex = {};
 let daggerAsteriskIndex = {};
 let ageGenderRules = {};
 let externalCauseRules = {};
+let highRiskPairs = [];
 let dbInstance = null;
 
 let patientAge = null;
 let patientGender = null;
 let dataLoaded = false;
 let pendingLookup = null;
+let currentLiveCodes = [];
 
 async function loadData() {
   try {
@@ -35,6 +37,8 @@ async function loadData() {
     ageGenderRules = await agRes2.json();
     const ecRes2 = await fetch(chrome.runtime.getURL('rules/external-cause-rules.json'));
     externalCauseRules = await ecRes2.json();
+    const hrRes = await fetch(chrome.runtime.getURL('rules/high-risk-pairs.json'));
+    highRiskPairs = await hrRes.json();
 
     console.log(`Loaded ICD index (${Object.keys(icd10Index).length} codes) into memory`);
     dataLoaded = true;
@@ -48,7 +52,11 @@ async function loadData() {
 }
 
 function normalizeCode(code) {
-  return code.trim().toUpperCase().replace(/\s+/g, '');
+  let clean = code.trim().toUpperCase().replace(/\s+/g, '');
+  if (clean.startsWith('0')) {
+    clean = 'O' + clean.slice(1);
+  }
+  return clean;
 }
 
 function getCodeVariants(code) {
@@ -113,6 +121,47 @@ function checkExternalCause(code) {
   return externalCauseRules["T"];
 }
 
+function matchesRuleCode(actualCode, ruleCode) {
+  const cleanActual = normalizeCode(actualCode).replace('.', '');
+  if (ruleCode.includes('-')) {
+    const [start, end] = ruleCode.split('-');
+    const letter = start.charAt(0);
+    if (cleanActual.charAt(0) !== letter) return false;
+    const num = parseInt(cleanActual.substring(1, 3), 10);
+    const startNum = parseInt(start.substring(1), 10);
+    const endNum = parseInt(end.substring(1), 10);
+    return num >= startNum && num <= endNum;
+  } else {
+    return cleanActual.startsWith(ruleCode.replace('.', ''));
+  }
+}
+
+function checkHighRisk(code, activeCodes) {
+  const cleanCode = normalizeCode(code);
+  const applicableRules = highRiskPairs.filter(rule => 
+    rule.codes.some(rc => matchesRuleCode(cleanCode, rc))
+  );
+
+  if (applicableRules.length === 0) return null;
+
+  return applicableRules.map(rule => {
+    const otherRuleCodes = rule.codes.filter(rc => !matchesRuleCode(cleanCode, rc));
+    let conflictPresent = false;
+    let conflictingActiveCode = null;
+    
+    for (const active of activeCodes) {
+      const cleanActive = normalizeCode(active);
+      if (cleanActive !== cleanCode && otherRuleCodes.some(orc => matchesRuleCode(cleanActive, orc))) {
+        conflictPresent = true;
+        conflictingActiveCode = active;
+        break;
+      }
+    }
+
+    return { rule, conflictPresent, conflictingActiveCode, otherRuleCodes };
+  });
+}
+
 async function showResult(code) {
   const resultDiv = document.getElementById('result');
   let cleanCode = normalizeCode(code);
@@ -132,14 +181,24 @@ async function showResult(code) {
   const daData = lookupIndex(daggerAsteriskIndex, cleanCode + '*') || lookupIndex(daggerAsteriskIndex, cleanCode);
   const agCheck = checkAgeGender(cleanCode);
   const ecCheck = checkExternalCause(cleanCode);
+  const hrCheck = checkHighRisk(cleanCode, currentLiveCodes);
 
   let html = `<div class="card">`;
-  const description = icdData?.d || pmbData?.pmbDescription || pmbData?.icdDescription || 'No description available.';
+  const description = icdData?.d || pmbData?.pmbDescription || pmbData?.icdDescription || (ecCheck ? `Injury Category: ${ecCheck.category}` : 'No description available.');
 
-  if (icdData || pmbData) {
+  if (icdData || pmbData || daData) {
     html += `<div class="code">${cleanCode}</div>`;
+    if (!icdData && !pmbData && daData) {
+       html += `<p class="text-zinc-200">${daData.note || 'Dagger/Asterisk manifestation code.'}</p>`;
+       html += `<div class="mt-3 text-emerald-400 text-sm">✓ VALID DAGGER PAIR</div>`;
+    } else {
+       html += `<p class="text-zinc-200">${description}</p>`;
+       html += `<div class="mt-3 text-emerald-400 text-sm">✓ VALID ICD-10 Code${pmbData ? ' · PMB eligible' : ''}</div>`;
+    }
+  } else if (ecCheck) {
+    html += `<div class="code text-blue-400">${cleanCode}</div>`;
     html += `<p class="text-zinc-200">${description}</p>`;
-    html += `<div class="mt-3 text-emerald-400 text-sm">✓ VALID ICD-10 Code${pmbData ? ' · PMB eligible' : ''}</div>`;
+    html += `<div class="mt-3 text-blue-400 text-sm">ℹ️ Incomplete Code (Category)</div>`;
   } else {
     html += `<div class="code text-amber-400">${cleanCode}</div><p class="text-amber-300">Code not found.</p>`;
   }
@@ -160,25 +219,33 @@ async function showResult(code) {
       </div>`;
   }
 
-  if (daData && daData.type === "asterisk") {
-    html += `
-      <div class="mt-4 p-4 bg-orange-950 border border-orange-500 rounded-2xl">
-        <div class="flex items-center gap-2 text-orange-400 mb-3 font-semibold">⚠️ ASTERISK (*) CODE DETECTED</div>
-        <p class="text-sm text-orange-100">This manifestation code <strong>must</strong> be paired with a Dagger (†) code.</p>
-        <div class="mt-4 bg-zinc-900 p-3 rounded-xl">
-          <div class="text-emerald-400 text-xs mb-1">SUGGESTED DAGGER CODE(S):</div>
-          <div class="text-lg font-bold text-white">${daData.pairedWith.join(" or ")}</div>
-          <div class="text-xs text-zinc-400 mt-1">${daData.note}</div>
-        </div>
-      </div>`;
-  }
+    if (daData && daData.type === "asterisk") {
+      html += `
+        <div class="mt-4 p-4 bg-green-950 border border-green-500 rounded-2xl">
+          <div class="flex items-center gap-2 text-green-400 mb-3 font-semibold">✅ DAGGER CODE PAIR</div>
+          <p class="text-sm text-green-100">This manifestation code is paired with dagger code(s):</p>
+          <div class="mt-2 bg-zinc-900 p-3 rounded-xl">
+            <div class="text-emerald-400 text-xs mb-1">SUGGESTED DAGGER CODE(S):</div>
+            <div class="text-lg font-bold text-white">${daData.pairedWith.join(" or ")}</div>
+            <div class="text-xs text-zinc-400 mt-1">${daData.note}</div>
+          </div>
+        </div>`;
+    }
 
-  if (ecCheck) {
-    html += `
-      <div class="mt-4 p-4 bg-blue-950 border border-blue-500 rounded-2xl">
-        <div class="flex items-center gap-2 text-blue-400 mb-3 font-semibold">📋 EXTERNAL CAUSE CODE RECOMMENDED</div>
-        <p class="text-sm text-blue-100">${ecCheck.message}</p>
-      </div>`;
+  if (hrCheck && hrCheck.length > 0) {
+    html += `<div class="mt-4 p-4 bg-orange-950 border border-orange-500 rounded-2xl">`;
+    html += `<div class="flex items-center gap-2 text-orange-400 mb-3 font-semibold">⚠️ HIGH RISK BILLING PAIR</div>`;
+    
+    hrCheck.forEach(item => {
+      if (item.conflictPresent) {
+         html += `<p class="text-sm text-orange-100 mb-2">🔥 <b>CONFLICT DETECTED:</b> This code conflicts with active code <b>${item.conflictingActiveCode}</b>.</p>`;
+         html += `<p class="text-sm text-orange-200">Reason: ${item.rule.reason}</p>`;
+      } else {
+         html += `<p class="text-sm text-orange-100 mb-2">Avoid billing with: <b>${item.otherRuleCodes.join(', ')}</b></p>`;
+         html += `<p class="text-sm text-orange-200">Reason: ${item.rule.reason}</p>`;
+      }
+    });
+    html += `</div>`;
   }
 
   html += `</div>`;
@@ -211,24 +278,18 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   if (liveToggle) {
-    // initialize state: default off
-    liveToggle.checked = false;
-    liveToggle.addEventListener('change', async () => {
+    // Load persisted state, default to true
+    chrome.storage.local.get(['liveModeEnabled'], (result) => {
+      const enabled = result.liveModeEnabled !== false; // default to true
+      liveToggle.checked = enabled;
+      // Sync state with background
+      chrome.runtime.sendMessage({ action: 'SET_LIVE_MODE', enabled });
+    });
+
+    liveToggle.addEventListener('change', () => {
       const enabled = !!liveToggle.checked;
-      // find currently active tab to associate live mode with
-      try {
-        const tabs = await new Promise((resolve) => chrome.tabs.query({ active: true, currentWindow: true }, resolve));
-        const tabId = tabs && tabs[0] && tabs[0].id;
-        if (tabId) {
-          chrome.runtime.sendMessage({ action: 'SET_LIVE_MODE', tabId: tabId, enabled }, (resp) => {
-            if (chrome.runtime.lastError) {
-              console.warn('Failed to set live mode:', chrome.runtime.lastError);
-            }
-          });
-        }
-      } catch (e) {
-        console.warn('Unable to set live mode:', e);
-      }
+      chrome.storage.local.set({ liveModeEnabled: enabled });
+      chrome.runtime.sendMessage({ action: 'SET_LIVE_MODE', enabled });
     });
   }
 });
@@ -236,6 +297,11 @@ document.addEventListener('DOMContentLoaded', () => {
 // Live updates
 chrome.runtime.onMessage.addListener((msg, sender) => {
   console.log('ClaimAi sidepanel received message:', msg, sender);
+
+  if (msg.action === "liveUpdate" && msg.results) {
+    currentLiveCodes = msg.results.map(r => r.normalized || r.raw);
+  }
+
   if ((msg.action === "liveUpdate" || msg.action === "lookup") && msg.code) {
     if (dataLoaded) {
       showResult(msg.code);

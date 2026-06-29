@@ -20,7 +20,7 @@ document.addEventListener('input', (event) => {
     }
 
     const text = target.isContentEditable ? target.textContent : target.value;
-    const icdRegex = /\b[A-Z][0-9]{2}(?:\.[0-9]{1,2})?\b/gi;
+    const icdRegex = /\b[A-Z0-9][0-9]{2}(?:\.[0-9]{1,4})?\b/gi;
     const matches = text ? text.match(icdRegex) : null;
 
     if (matches && matches.length > 0) {
@@ -30,6 +30,7 @@ document.addEventListener('input', (event) => {
         }, 300);
     } else {
         removeBadges(target);
+        validateCodesOnPage(target, []);
     }
 });
 
@@ -53,10 +54,11 @@ function updateVisualBadges(element, validationResults) {
 
     const container = document.createElement('div');
     container.className = 'claimai-badge-container';
-    container.style.display = 'inline-flex';
-    container.style.gap = '4px';
-    container.style.marginLeft = '8px';
-    container.style.verticalAlign = 'middle';
+    container.style.display = 'flex';
+    container.style.flexDirection = 'column';
+    container.style.gap = '6px';
+    container.style.marginTop = '6px';
+    container.style.position = 'relative';
 
     validationResults.forEach(result => {
             const badge = document.createElement('span');
@@ -64,14 +66,6 @@ function updateVisualBadges(element, validationResults) {
             const baseCls = 'claimai-badge';
             const stateCls = result.isValid ? 'valid' : 'invalid';
             badge.className = `${baseCls} ${stateCls} show` + (result.pmbEligible ? ' pmb' : '');
-            badge.style.padding = '2px 6px';
-            badge.style.borderRadius = '4px';
-            badge.style.fontSize = '11px';
-            badge.style.fontWeight = 'bold';
-            badge.style.color = '#fff';
-            // Ensure inline visibility regardless of page CSS
-            badge.style.opacity = '1';
-            badge.style.position = 'relative';
         if (result.isValid) {
             if (result.pmbEligible) {
                 badge.textContent = `${result.raw} (PMB)`;
@@ -80,8 +74,17 @@ function updateVisualBadges(element, validationResults) {
             }
             badge.title = result.description || 'Valid South African ICD-10 code.';
         } else {
-            badge.textContent = `${result.raw} (Invalid)`;
-            badge.title = 'Unrecognized South African ICD-10 Code.';
+            const clean = (result.raw || '').replace(/[^A-Z0-9]/gi, '');
+            if (clean.length === 3) {
+                badge.className = `${baseCls} invalid show`;
+                badge.style.backgroundColor = '#1e40af';
+                badge.style.borderColor = '#3b82f6';
+                badge.textContent = `${result.raw} (Category)`;
+                badge.title = 'Incomplete ICD-10 Category Code.';
+            } else {
+                badge.textContent = `${result.raw} (Invalid)`;
+                badge.title = 'Unrecognized South African ICD-10 Code.';
+            }
         }
 
         container.appendChild(badge);
@@ -119,7 +122,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
 
     if (message.action === 'GET_PAGE_METRICS') {
-        const valid = document.querySelectorAll('.claimai-badge-valid, .claimai-badge-pmb').length;
+        const valid = document.querySelectorAll('.claimai-badge.valid, .claimai-badge.pmb').length;
         sendResponse({ validCount: valid });
     }
 });
