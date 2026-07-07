@@ -128,21 +128,23 @@ if (typeof chrome !== 'undefined' && chrome.runtime) {
           console.log(`ClaimAi: Database init/seed attempt ${attempt} of ${maxAttempts}...`);
           await db.init();
 
+          const currentVer = await db.getMetadata('standardsVersion');
           const isSeeded = await db.isFullySeeded(50000);
           const storageResult = await new Promise(resolve => {
             chrome.storage.local.get(['dbSeeded'], (res) => resolve(res && res.dbSeeded));
           });
 
-          if (isSeeded && storageResult) {
-            console.log('ClaimAi: Database is fully seeded and verified.');
+          if (isSeeded && storageResult && currentVer === 'v6-2014') {
+            console.log('ClaimAi: Database is fully seeded and standards are up to date.');
             return true;
           }
 
-          console.log('ClaimAi: Database is unseeded or incomplete. Starting seeding process...');
+          console.log('ClaimAi: Database is unseeded, outdated, or incomplete. Starting seeding process...');
           
           // Clear cache flag before starting to prevent race conditions
           await new Promise(resolve => chrome.storage.local.remove(['dbSeeded'], resolve));
 
+          // 1. Seed ICD10 index codes
           const response = await fetch(chrome.runtime.getURL('lib/icd10-index.json'));
           if (!response.ok) {
             throw new Error(`Failed to load lib/icd10-index.json: Status ${response.status}`);
@@ -163,6 +165,48 @@ if (typeof chrome !== 'undefined' && chrome.runtime) {
           await db.bulkInsertAll(icdArray);
           const endTime = performance.now();
           console.log(`ClaimAi: Seeding complete in ${((endTime - startTime) / 1000).toFixed(2)}s.`);
+
+          // 2. Seed parsed rules JSON
+          const rulesResponse = await fetch(chrome.runtime.getURL('rules/hard-validation-rules.json'));
+          if (rulesResponse.ok) {
+            const rulesJson = await rulesResponse.json();
+            await db.storeRules(rulesJson);
+            console.log('ClaimAi: Seeded hard validation rules to IndexedDB.');
+          }
+
+          // 3. Seed parsed standards MD sections
+          const standardsResponse = await fetch(chrome.runtime.getURL('ClaimAi/SA_ICD10_Morbidity_Coding_Standards.md'));
+          if (standardsResponse.ok) {
+            const mdText = await standardsResponse.text();
+            const lines = mdText.split('\n');
+            let currentSection = null;
+            const sections = [];
+            
+            for (const line of lines) {
+              if (line.startsWith('## ') || line.startsWith('### ')) {
+                if (currentSection) {
+                  sections.push(currentSection);
+                }
+                const title = line.replace(/^##\s+|###\s+/, '').trim();
+                const id = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+                currentSection = {
+                  id,
+                  title,
+                  body: ''
+                };
+              } else if (currentSection) {
+                currentSection.body += line + '\n';
+              }
+            }
+            if (currentSection) {
+              sections.push(currentSection);
+            }
+            await db.storeStandards(sections);
+            console.log(`ClaimAi: Seeded ${sections.length} Morbidity standards sections to IndexedDB.`);
+          }
+
+          // 4. Update standards metadata versioning
+          await db.setMetadata('standardsVersion', 'v6-2014');
 
           // Double check database to verify seeding completed properly
           const verified = await db.isFullySeeded(50000);
