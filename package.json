@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "ClaimAi ICD-10 Coding Compliance & Validation Assistant",
   "scripts": {
-    "test": "node --test tests/utils.test.js tests/code-conflicts.test.js",
+    "test": "node --test tests/utils.test.js tests/code-conflicts.test.js tests/morbidity-standards-coverage.test.js",
     "parse-rules": "node scripts/parse-standards.js"
   },
   "dependencies": {},
