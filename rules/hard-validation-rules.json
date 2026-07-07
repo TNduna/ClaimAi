@@ -1,0 +1,77 @@
+{
+  "prohibitedPrimaries": {
+    "categories": [
+      "V01-Y98",
+      "B95-B98",
+      "Z37",
+      "Z21"
+    ],
+    "sequelaePrefixes": [
+      "I69",
+      "B94",
+      "E64",
+      "G09",
+      "O97",
+      "T90",
+      "T91",
+      "T92",
+      "T93",
+      "T94",
+      "T95",
+      "T96",
+      "T97",
+      "T98"
+    ]
+  },
+  "formatRules": {
+    "maxCodesPerLine": 10,
+    "forbiddenCharacters": [
+      "\"",
+      "(",
+      ")",
+      "[",
+      "]",
+      "-"
+    ],
+    "delimiter": " / ",
+    "xPlaceholderCategories": [
+      "M45",
+      "T08",
+      "T10",
+      "T12",
+      "V98",
+      "V99"
+    ]
+  },
+  "clinicalRules": {
+    "hivCodes": [
+      "B20",
+      "B21",
+      "B22",
+      "B23"
+    ],
+    "blockedHivCodes": [
+      "B22.7"
+    ],
+    "blockedNeoplasms": [
+      "C97"
+    ],
+    "tbActiveRange": [
+      "A15",
+      "A16",
+      "A17",
+      "A18",
+      "A19"
+    ],
+    "tbResistanceCategory": "U50",
+    "therapyCodes": [
+      "Z51.0",
+      "Z51.1"
+    ],
+    "metastasisCodes": [
+      "C77",
+      "C78",
+      "C79"
+    ]
+  }
+}
