@@ -16,39 +16,71 @@
     </div>
   </div>
 
-  <!-- Dynamic Site Access Permission Banner -->
-  <div id="permission-banner" class="permission-banner" style="display: none;">
-    <div style="font-weight: 600; color: #fb923c; margin-bottom: 4px;">⚠️ Permission Required</div>
-    <div style="font-size: 11px; color: #e4e4e7; margin-bottom: 8px;">ClaimAi is disabled on this site to protect your privacy. Enable it to begin code scanning.</div>
-    <button id="grant-permission-btn" class="permission-btn">Enable ClaimAi</button>
+  <!-- Tab Navigation -->
+  <div class="tabs-container">
+    <button class="tab-button active" id="tab-scan">Audits & Live Scan</button>
+    <button class="tab-button" id="tab-standards">Standards & Explorer</button>
   </div>
 
-  <!-- Patient Context Filters -->
-  <div class="patient-context">
-    <div class="context-label">Patient Context</div>
-    <div class="context-controls">
-      <input type="number" id="age" placeholder="Age (years)" min="0" max="120" step="1">
-      <div class="gender-group">
-        <button class="gender-btn" id="male">M</button>
-        <button class="gender-btn" id="female">F</button>
+  <div id="scan-tab-content">
+    <!-- Dynamic Site Access Permission Banner -->
+    <div id="permission-banner" class="permission-banner" style="display: none;">
+      <div style="font-weight: 600; color: #fb923c; margin-bottom: 4px;">⚠️ Permission Required</div>
+      <div style="font-size: 11px; color: #e4e4e7; margin-bottom: 8px;">ClaimAi is disabled on this site to protect your privacy. Enable it to begin code scanning.</div>
+      <button id="grant-permission-btn" class="permission-btn">Enable ClaimAi</button>
+    </div>
+
+    <!-- Patient Context Filters -->
+    <div class="patient-context">
+      <div class="context-label">Patient Context</div>
+      <div class="context-controls">
+        <input type="number" id="age" placeholder="Age (years)" min="0" max="120" step="1">
+        <div class="gender-group">
+          <button class="gender-btn" id="male">M</button>
+          <button class="gender-btn" id="female">F</button>
+        </div>
       </div>
     </div>
-  </div>
 
-  <!-- Results Area (Populated dynamically) -->
-  <div id="result">
-    <div class="card" id="code-card" style="display: none;">
-      <div class="code" id="code-title">—</div>
-      <div id="code-description" class="description-text">Select or lookup a code to see details.</div>
-      <div id="pmb-status" class="status-badge unknown">PMB status unknown</div>
+    <!-- Results Area (Populated dynamically) -->
+    <div id="result">
+      <div class="card" id="code-card" style="display: none;">
+        <div class="code" id="code-title">—</div>
+        <div id="code-description" class="description-text">Select or lookup a code to see details.</div>
+        <div id="pmb-status" class="status-badge unknown">PMB status unknown</div>
+      </div>
+    </div>
+
+    <!-- Claim Line Preview & Validator Card -->
+    <div class="card" id="claim-preview-card" style="display: none; border-color: var(--surface-border);">
+      <div class="context-label">Claim Line Preview</div>
+      <div id="claim-preview-text" style="font-family: monospace; background: hsl(240, 6%, 6%); border: 1px solid var(--surface-border); padding: 10px; border-radius: 8px; font-size: 13px; color: #10b981; word-break: break-all; margin-top: 8px; font-weight: bold; letter-spacing: 0.05em;">—</div>
+      <div id="claim-preview-status" style="margin-top: 10px; font-size: 11px;"></div>
     </div>
   </div>
 
-  <!-- Claim Line Preview & Validator Card -->
-  <div class="card" id="claim-preview-card" style="display: none; border-color: var(--surface-border);">
-    <div class="context-label">Claim Line Preview</div>
-    <div id="claim-preview-text" style="font-family: monospace; background: hsl(240, 6%, 6%); border: 1px solid var(--surface-border); padding: 10px; border-radius: 8px; font-size: 13px; color: #10b981; word-break: break-all; margin-top: 8px; font-weight: bold; letter-spacing: 0.05em;">—</div>
-    <div id="claim-preview-status" style="margin-top: 10px; font-size: 11px;"></div>
+  <div id="standards-tab-content" style="display: none;">
+    <!-- Ethics Tips Widget -->
+    <div class="card ethics-tip-card" id="ethics-tip-card">
+      <div class="context-label">Ethics Quick Tip</div>
+      <div id="ethics-tip-text" style="font-size: 13px; line-height: 1.5; color: var(--text-muted); font-style: italic;">Loading ethics tip...</div>
+      <button class="permission-btn mt-3" id="next-tip-btn" style="margin-top: 10px; font-size: 11px; padding: 6px 12px; width: auto; display: inline-block;">Next Tip</button>
+    </div>
+
+    <!-- Standards Search -->
+    <div class="card">
+      <div class="context-label">Search Morbidity Standards</div>
+      <input type="text" id="standards-search-input" placeholder="Search guidelines (e.g. HIV, TB, GSN0001)..." style="background: hsl(240, 6%, 6%); border: 1px solid var(--surface-border); color: var(--text-primary); padding: 8px 12px; border-radius: 8px; font-size: 13px; font-weight: 500; width: 100%; box-sizing: border-box;">
+      <div id="standards-search-results" class="search-results-container" style="margin-top: 12px; display: none;"></div>
+    </div>
+
+    <!-- Rule Explorer -->
+    <div class="card">
+      <div class="context-label">Morbidity Rules Explorer</div>
+      <div id="rule-explorer-container" class="rule-explorer-container">
+        <div style="font-size: 12px; color: var(--text-muted);">Loading standards...</div>
+      </div>
+    </div>
   </div>
 
   <!-- Usage & Privacy (POPIA-compliant Telemetry) -->

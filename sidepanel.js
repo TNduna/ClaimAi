@@ -13,6 +13,11 @@ let dataLoaded = false;
 let pendingLookup = null;
 let currentLiveCodes = [];
 
+// Markdown Standards state
+let parsedSections = [];
+let ethicsTips = [];
+let currentEthicsIndex = 0;
+
 async function loadData() {
   try {
     // Load JS index and rules into memory (no direct DB initialization from sidepanel)
@@ -46,9 +51,219 @@ async function loadData() {
       showResult(pendingLookup);
       pendingLookup = null;
     }
+
+    // Load and parse Morbidity Coding Standards Markdown
+    await loadMorbidityStandards();
   } catch (e) {
     console.error('Data load error:', e);
   }
+}
+
+/**
+ * Loads the Morbidity Coding Standards Markdown file, parses it into structured
+ * sections, and extracts the clinical ethics principles.
+ */
+async function loadMorbidityStandards() {
+  try {
+    const resp = await fetch(chrome.runtime.getURL('ClaimAi/SA_ICD10_Morbidity_Coding_Standards.md'));
+    if (!resp.ok) throw new Error('Failed to load morbidity standards MD file');
+    const mdText = await resp.text();
+    
+    // Parse sections
+    const lines = mdText.split('\n');
+    let currentSection = null;
+    parsedSections = [];
+    
+    for (const line of lines) {
+      if (line.startsWith('## ') || line.startsWith('### ')) {
+        if (currentSection) {
+          parsedSections.push(currentSection);
+        }
+        const level = line.startsWith('## ') ? 2 : 3;
+        const title = line.replace(/^##\s+|###\s+/, '').trim();
+        const id = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+        currentSection = {
+          id,
+          title,
+          level,
+          body: '',
+          code: extractCodeFromTitle(title)
+        };
+      } else if (currentSection) {
+        currentSection.body += line + '\n';
+      }
+    }
+    if (currentSection) {
+      parsedSections.push(currentSection);
+    }
+    
+    // Extract Ethics Tips from the Ethics section
+    const ethicsSection = parsedSections.find(s => s.id.includes('ethics'));
+    if (ethicsSection) {
+      const principles = ethicsSection.body.split(/\n\s*\d+[\)\.]\s*/);
+      ethicsTips = principles.slice(1).map(p => p.trim()).filter(p => p.length > 0);
+    }
+    
+    // Fallback ethics tips if parsing failed
+    if (ethicsTips.length === 0) {
+      ethicsTips = [
+        "Clinical Coders shall perform their work with honesty, attentiveness, and responsibility.",
+        "Clinical coders shall refuse to participate in or conceal any illegal, unlawful or unethical processes.",
+        "Clinical Coders should only assign and report codes that are clearly supported by practitioner documentation.",
+        "Clinical coders shall ensure that clinical record content justifies selection of diagnosis, procedures, and treatment."
+      ];
+    }
+    
+    renderRuleExplorer();
+    showRandomEthicsTip();
+  } catch (e) {
+    console.warn('Morbidity Standards load/parse failed:', e);
+  }
+}
+
+function extractCodeFromTitle(title) {
+  const match = title.match(/\b(GSN\d+|DSN\d+)\b/i);
+  return match ? match[1].toUpperCase() : null;
+}
+
+function formatMarkdownToHTML(mdText) {
+  if (!mdText) return '';
+  return mdText
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
+    .replace(/^\s*>\s*\[\!IMPORTANT\]\s*(.*?)$/gm, '<blockquote style="border-left-color: var(--danger);">$1</blockquote>')
+    .replace(/^\s*>\s*\[\!NOTE\]\s*(.*?)$/gm, '<blockquote style="border-left-color: var(--info);">$1</blockquote>')
+    .replace(/^\s*>\s*(.*?)$/gm, '<blockquote>$1</blockquote>')
+    .replace(/^\s*[\-\*]\s*(.*?)$/gm, '<li>$1</li>')
+    .replace(/(<li>.*?<\/li>)+/g, '<ul>$&</ul>')
+    .replace(/\n\n+/g, '<br><br>')
+    .replace(/\n/g, '<br>');
+}
+
+function renderRuleExplorer() {
+  const container = document.getElementById('rule-explorer-container');
+  if (!container) return;
+  
+  // Filter sections that represent validation rules or GSN/DSN guidelines
+  const ruleSections = parsedSections.filter(s => s.code || s.id.includes('rule') || s.title.includes('GSN') || s.title.includes('DSN'));
+  
+  if (ruleSections.length === 0) {
+    container.innerHTML = '<div style="font-size: 12px; color: var(--text-muted);">No rules found.</div>';
+    return;
+  }
+  
+  let html = '';
+  ruleSections.forEach(section => {
+    const formattedBody = formatMarkdownToHTML(section.body);
+    html += `
+      <details class="rule-card" id="rule-${section.id}">
+        <summary class="rule-card-header">${escapeHTML(section.title)}</summary>
+        <div class="rule-card-body">
+          ${formattedBody}
+        </div>
+      </details>
+    `;
+  });
+  
+  container.innerHTML = html;
+}
+
+function showRandomEthicsTip() {
+  const tipText = document.getElementById('ethics-tip-text');
+  if (!tipText || ethicsTips.length === 0) return;
+  currentEthicsIndex = Math.floor(Math.random() * ethicsTips.length);
+  tipText.textContent = ethicsTips[currentEthicsIndex];
+}
+
+function searchMorbidityStandards(query) {
+  const resultsDiv = document.getElementById('standards-search-results');
+  if (!resultsDiv) return;
+  
+  if (!query || query.trim().length < 2) {
+    resultsDiv.style.display = 'none';
+    return;
+  }
+  
+  const cleanQuery = query.toLowerCase().trim();
+  const matches = parsedSections.filter(section => 
+    section.title.toLowerCase().includes(cleanQuery) || 
+    section.body.toLowerCase().includes(cleanQuery)
+  );
+  
+  if (matches.length === 0) {
+    resultsDiv.innerHTML = '<div style="font-size: 12px; color: var(--text-muted); padding: 8px;">No matches found.</div>';
+    resultsDiv.style.display = 'block';
+    return;
+  }
+  
+  let html = '';
+  matches.forEach(match => {
+    const bodyLower = match.body.toLowerCase();
+    const idx = bodyLower.indexOf(cleanQuery);
+    let snippet = '';
+    if (idx !== -1) {
+      const start = Math.max(0, idx - 40);
+      const end = Math.min(match.body.length, idx + 60);
+      snippet = '...' + match.body.substring(start, end).replace(/\n/g, ' ') + '...';
+    } else {
+      snippet = match.body.substring(0, 100).replace(/\n/g, ' ') + '...';
+    }
+    
+    html += `
+      <div class="search-result-item" data-id="${match.id}">
+        <div class="search-result-title">${escapeHTML(match.title)}</div>
+        <div class="search-result-snippet">${escapeHTML(snippet)}</div>
+      </div>
+    `;
+  });
+  
+  resultsDiv.innerHTML = html;
+  resultsDiv.style.display = 'block';
+  
+  // Bind click listeners to results to scroll rule explorer
+  resultsDiv.querySelectorAll('.search-result-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const id = item.getAttribute('data-id');
+      const detailsEl = document.getElementById(`rule-${id}`);
+      if (detailsEl) {
+        detailsEl.setAttribute('open', 'true');
+        detailsEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        detailsEl.style.borderColor = 'var(--primary)';
+        setTimeout(() => {
+          detailsEl.style.borderColor = 'var(--surface-border)';
+        }, 1500);
+      }
+    });
+  });
+}
+
+function getExcerptForFinding(finding) {
+  let ruleCode = null;
+  const msg = (finding.message || '').toUpperCase();
+  
+  if (finding.type === 'PRIMARY_ERROR') ruleCode = 'GSN0001';
+  else if (finding.type === 'PAIRING_ERROR') ruleCode = 'GSN0010';
+  else if (finding.type === 'SEQUENCE_ERROR') ruleCode = 'GSN0010';
+  else if (msg.includes('B22.7')) ruleCode = 'DSN0101';
+  else if (msg.includes('C97')) ruleCode = 'DSN0201';
+  else if (msg.includes('U50')) ruleCode = 'DSN2201';
+  else if (msg.includes('Z51')) ruleCode = 'DSN0201';
+  else if (msg.includes('X PLACEHOLDER')) ruleCode = 'GSN0009';
+  else if (msg.includes('TRIGGER FINGER') || msg.includes('M71.56')) ruleCode = 'GSN0011';
+  else if (msg.includes('SEPARATING') || msg.includes('DELIMITER')) ruleCode = 'GSN0104';
+
+  if (!ruleCode) return '';
+
+  const section = parsedSections.find(s => s.code === ruleCode || s.title.includes(ruleCode));
+  if (section) {
+    const lines = section.body.split('\n').filter(l => l.trim().length > 0).slice(0, 2).join(' ');
+    return `<div style="font-size: 11px; margin-top: 6px; padding-left: 8px; border-left: 2px solid var(--info); color: var(--text-muted); font-style: italic;">
+      <b>Per ${ruleCode}:</b> ${escapeHTML(lines)}...
+    </div>`;
+  }
+  return '';
 }
 
 const normalizeCode = window.ClaimAiUtils.normalizeCode;
@@ -159,6 +374,14 @@ function escapeHTML(str) {
   );
 }
 
+// Watch tab updates and activations
+chrome.tabs.onActivated.addListener(checkTabPermission);
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (changeInfo.status === 'complete') {
+    checkTabPermission();
+  }
+});
+
 async function checkTabPermission() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -199,14 +422,6 @@ async function checkTabPermission() {
     console.warn('ClaimAi: Permission check failed:', e);
   }
 }
-
-// Watch tab updates and activations
-chrome.tabs.onActivated.addListener(checkTabPermission);
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.status === 'complete') {
-    checkTabPermission();
-  }
-});
 
 async function showResult(code) {
   const resultDiv = document.getElementById('result');
@@ -349,12 +564,48 @@ async function showResult(code) {
   resultDiv.innerHTML = html;
 }
 
-// Patient Context & Telemetry Dashboard
+// Patient Context, Tab Navigation & Search Listeners
 document.addEventListener('DOMContentLoaded', () => {
   const ageInput = document.getElementById('age');
   const maleBtn = document.getElementById('male');
   const femaleBtn = document.getElementById('female');
   const liveToggle = document.getElementById('live-toggle');
+
+  // Tabswitching bindings
+  const tabScan = document.getElementById('tab-scan');
+  const tabStandards = document.getElementById('tab-standards');
+  const scanContent = document.getElementById('scan-tab-content');
+  const standardsContent = document.getElementById('standards-tab-content');
+
+  if (tabScan && tabStandards && scanContent && standardsContent) {
+    tabScan.addEventListener('click', () => {
+      tabScan.classList.add('active');
+      tabStandards.classList.remove('active');
+      scanContent.style.display = 'block';
+      standardsContent.style.display = 'none';
+    });
+
+    tabStandards.addEventListener('click', () => {
+      tabStandards.classList.add('active');
+      tabScan.classList.remove('active');
+      standardsContent.style.display = 'block';
+      scanContent.style.display = 'none';
+    });
+  }
+
+  // Standards search binder
+  const searchInput = document.getElementById('standards-search-input');
+  if (searchInput) {
+    searchInput.addEventListener('input', () => {
+      searchMorbidityStandards(searchInput.value);
+    });
+  }
+
+  // Ethics tip rotator
+  const nextTipBtn = document.getElementById('next-tip-btn');
+  if (nextTipBtn) {
+    nextTipBtn.addEventListener('click', showRandomEthicsTip);
+  }
 
   if (ageInput) {
     ageInput.addEventListener('input', () => patientAge = parseInt(ageInput.value) || null);
@@ -375,11 +626,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   if (liveToggle) {
-    // Load persisted state, default to true
     chrome.storage.local.get(['liveModeEnabled'], (result) => {
-      const enabled = result.liveModeEnabled !== false; // default to true
+      const enabled = result.liveModeEnabled !== false;
       liveToggle.checked = enabled;
-      // Sync state with background
       chrome.runtime.sendMessage({ action: 'SET_LIVE_MODE', enabled });
     });
 
@@ -390,7 +639,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Initialize POPIA-compliant Telemetry settings & UI listeners
   try {
     window.ClaimAiTelemetry.initializeTelemetry().then(() => {
       updateTelemetryUI();
@@ -413,17 +661,15 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    // Record sidepanel load as an open event
     window.ClaimAiTelemetry.trackFeatureUse('sidepanelOpen');
   } catch (e) {
     console.warn('ClaimAi Telemetry: Failed to bind UI listeners', e);
   }
 
-  // Run initial tab permission check
   checkTabPermission();
 });
 
-function updateClaimLinePreview(formatValidation, submissionPreview) {
+function updateClaimLinePreview(formatValidation, submissionPreview, sequenceValidation) {
   const card = document.getElementById('claim-preview-card');
   const previewText = document.getElementById('claim-preview-text');
   const previewStatus = document.getElementById('claim-preview-status');
@@ -437,21 +683,57 @@ function updateClaimLinePreview(formatValidation, submissionPreview) {
 
   card.style.display = 'block';
   previewText.textContent = submissionPreview;
+  
+  let html = '';
 
+  // 1. Formatting Warnings
   if (formatValidation && formatValidation.length > 0) {
-    let html = '<div style="color: var(--danger); font-weight: 700; margin-bottom: 6px;">⚠️ Formatting Warnings:</div>';
-    html += '<ul style="margin: 0; padding-left: 18px; color: var(--text-muted);">';
+    html += '<div style="color: var(--danger); font-weight: 700; margin-bottom: 6px;">⚠️ Formatting Warnings:</div>';
+    html += '<ul style="margin: 0 0 10px 0; padding-left: 18px; color: var(--text-muted);">';
     formatValidation.forEach(err => {
-      html += `<li style="margin-bottom: 4px;">${escapeHTML(err.message)}</li>`;
+      const excerpt = getExcerptForFinding(err);
+      html += `<li style="margin-bottom: 6px;">
+        <div>${escapeHTML(err.message)}</div>
+        ${excerpt}
+      </li>`;
     });
     html += '</ul>';
-    previewStatus.innerHTML = html;
-    previewText.style.color = 'var(--warning)';
-    previewText.style.borderColor = 'var(--warning-border)';
-  } else {
+  }
+
+  // 2. Clinical & Sequencing Warnings
+  if (sequenceValidation && sequenceValidation.findings && sequenceValidation.findings.length > 0) {
+    html += '<div style="color: var(--warning); font-weight: 700; margin-bottom: 6px;">⚠️ Clinical & Sequencing Warnings:</div>';
+    html += '<ul style="margin: 0 0 10px 0; padding-left: 18px; color: var(--text-muted);">';
+    sequenceValidation.findings.forEach(finding => {
+      const excerpt = getExcerptForFinding(finding);
+      html += `<li style="margin-bottom: 8px;">
+        <div>${escapeHTML(finding.message)}</div>
+        ${excerpt}
+      </li>`;
+    });
+    html += '</ul>';
+  }
+
+  // 3. Suggested Primary Swaps
+  if (sequenceValidation && sequenceValidation.suggestedPrimary) {
+    const excerpt = getExcerptForFinding({ type: 'PRIMARY_ERROR', message: '' });
+    html += `
+      <div style="background-color: var(--info-bg); border: 1px solid var(--info-border); border-radius: 8px; padding: 10px; margin-top: 10px;">
+        <div style="color: var(--info); font-weight: 700; font-size: 12px; margin-bottom: 4px;">💡 SUGGESTED PRIMARY SWAP</div>
+        <div style="font-size: 13px; color: var(--text-primary); margin-bottom: 4px;">We suggest using <b>${escapeHTML(sequenceValidation.suggestedPrimary)}</b> as the primary diagnosis.</div>
+        ${excerpt}
+      </div>
+    `;
+  }
+
+  if (html === '') {
     previewStatus.innerHTML = '<div style="color: var(--primary); font-weight: 700;">✓ Submission format is valid & POPIA/NDoH compliant.</div>';
     previewText.style.color = '#10b981';
     previewText.style.borderColor = 'var(--surface-border)';
+  } else {
+    previewStatus.innerHTML = html;
+    previewText.style.color = 'var(--warning)';
+    previewText.style.borderColor = 'var(--warning-border)';
   }
 }
 
@@ -461,7 +743,7 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
 
   if (msg.action === "liveUpdate" && msg.results) {
     currentLiveCodes = msg.results.map(r => r.normalized || r.raw);
-    updateClaimLinePreview(msg.formatValidation, msg.submissionPreview);
+    updateClaimLinePreview(msg.formatValidation, msg.submissionPreview, msg.sequenceValidation);
   }
 
   if (msg.action === "lookup") {
