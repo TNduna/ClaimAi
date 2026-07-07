@@ -135,4 +135,33 @@ test('validateCodingSequence handles Neoplasm rules', () => {
   assert.strictEqual(res2.suggestedPrimary, 'C50.9');
 });
 
+test('validateClaimLineFormat checks specificity and X placeholder', () => {
+  // M45 without X -> triggers SPECIFICITY_ERROR
+  const res1 = validateClaimLineFormat('M45.99', ['M45.99']);
+  assert.ok(res1.some(f => f.type === 'SPECIFICITY_ERROR' && f.message.includes("requires 'X' as the 4th character placeholder")));
+
+  // M45 3-character -> triggers SPECIFICITY_WARNING
+  const res2 = validateClaimLineFormat('M45', ['M45']);
+  assert.ok(res2.some(f => f.type === 'SPECIFICITY_WARNING' && f.message.includes('requires a 5th character specificity')));
+
+  // M45 correct -> no warning/error
+  const res3 = validateClaimLineFormat('M45.X9', ['M45.X9']);
+  assert.strictEqual(res3.length, 0);
+});
+
+test('validateClaimLineFormat checks inappropriate 5th character rejections', () => {
+  // Trigger finger (M65.3) invalid 5th char -> SPECIFICITY_ERROR
+  const res1 = validateClaimLineFormat('M65.30', ['M65.30']);
+  assert.ok(res1.some(f => f.type === 'SPECIFICITY_ERROR' && f.message.includes('trigger finger')));
+
+  // Trigger finger correct -> no error
+  const res2 = validateClaimLineFormat('M65.34', ['M65.34']);
+  assert.strictEqual(res2.length, 0);
+
+  // M71.56 is invalid -> SPECIFICITY_ERROR
+  const res3 = validateClaimLineFormat('M71.56', ['M71.56']);
+  assert.ok(res3.some(f => f.type === 'SPECIFICITY_ERROR' && f.message.includes('M71.56 is invalid')));
+});
+
+
 
