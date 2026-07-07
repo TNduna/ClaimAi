@@ -1,6 +1,13 @@
-// background.js
-// Load the database engine as a classic script so we can avoid module bundling
-importScripts('./lib/utils.js', './lib/telemetry.js', './lib/db.js', './lib/code-conflicts.js');
+importScripts(
+  './lib/utils.js',
+  './lib/telemetry.js',
+  './lib/db.js',
+  './lib/validators/format-validator.js',
+  './lib/validators/sequence-validator.js',
+  './lib/validators/clinical-validator.js',
+  './lib/validators/specificity-validator.js',
+  './lib/code-conflicts.js'
+);
 
 if (typeof chrome !== 'undefined' && chrome.runtime) {
   console.log('%cClaimAi Background Service Worker Loaded ✅', 'color: #10b981; font-weight: bold');
@@ -428,10 +435,18 @@ if (typeof chrome !== 'undefined' && chrome.runtime) {
       }
     }
 
+    // Load validation rules configuration from IndexedDB
+    let rulesConfig = null;
+    try {
+      rulesConfig = await dbInstance.getRules();
+    } catch (e) {
+      console.warn('ClaimAi: Failed to load rules configuration, falling back to defaults:', e);
+    }
+
     // Perform sequence-level validation
     let sequenceValidation = null;
     try {
-      sequenceValidation = self.validateCodingSequence(codes, daggerAsterisk);
+      sequenceValidation = self.validateCodingSequence(codes, daggerAsterisk, rulesConfig || undefined);
     } catch (seqErr) {
       console.error('Sequence validation error:', seqErr);
     }
@@ -439,7 +454,7 @@ if (typeof chrome !== 'undefined' && chrome.runtime) {
     // Perform claim-line format validation
     let formatValidation = null;
     try {
-      formatValidation = self.validateClaimLineFormat(rawInput, codes);
+      formatValidation = self.validateClaimLineFormat(rawInput, codes, rulesConfig || undefined);
     } catch (formatErr) {
       console.error('Format validation error:', formatErr);
     }
@@ -447,7 +462,7 @@ if (typeof chrome !== 'undefined' && chrome.runtime) {
     // Generate submission preview
     let submissionPreview = '';
     try {
-      submissionPreview = self.generateSubmissionPreview(codes);
+      submissionPreview = self.generateSubmissionPreview(codes, rulesConfig || undefined);
     } catch (previewErr) {
       console.error('Submission preview generation error:', previewErr);
     }

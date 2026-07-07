@@ -8,7 +8,7 @@ const conflictsPath = path.join(__dirname, '../lib/code-conflicts.js');
 const conflictsCode = fs.readFileSync(conflictsPath, 'utf8');
 
 const mockGlobal = {};
-new Function('self', conflictsCode)(mockGlobal);
+new Function('self', 'require', '__dirname', conflictsCode)(mockGlobal, require, path.join(__dirname, '../lib'));
 const {
   validateCodingSequence,
   getProhibitedPrimaryReason,
