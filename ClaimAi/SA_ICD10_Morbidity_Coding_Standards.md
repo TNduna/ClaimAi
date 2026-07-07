@@ -1,3 +1,4 @@
+<!-- This is the canonical source. Last synced: July 2026. Check health.gov.za for updates. -->
 # The South African ICD-10 Morbidity Coding Standards and Guidelines
 *Developed to assist the Clinical Coder in the South African environment*
 
