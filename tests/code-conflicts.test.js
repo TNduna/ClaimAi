@@ -9,7 +9,13 @@ const conflictsCode = fs.readFileSync(conflictsPath, 'utf8');
 
 const mockGlobal = {};
 new Function('self', conflictsCode)(mockGlobal);
-const { validateCodingSequence, getProhibitedPrimaryReason, formatElectronicClaimsDelimiter } = mockGlobal;
+const {
+  validateCodingSequence,
+  getProhibitedPrimaryReason,
+  validateClaimLineFormat,
+  generateSubmissionPreview,
+  formatElectronicClaimsDelimiter
+} = mockGlobal;
 
 test('getProhibitedPrimaryReason identifies prohibited primaries', () => {
   // Prohibited primaries
@@ -68,3 +74,35 @@ test('formatElectronicClaimsDelimiter formats correctly', () => {
   assert.strictEqual(formatElectronicClaimsDelimiter('M79.20/I15.0'), 'M79.20 / I15.0');
   assert.strictEqual(formatElectronicClaimsDelimiter('M79.20-I15.0'), 'M79.20I15.0');
 });
+
+test('validateClaimLineFormat detects errors', () => {
+  // Max 10 codes
+  const manyCodes = Array(11).fill('E11.9');
+  const res1 = validateClaimLineFormat('E11.9 '.repeat(11), manyCodes);
+  assert.ok(res1.some(f => f.message.includes('Maximum of 10')));
+
+  // Ditto characters
+  const res2 = validateClaimLineFormat('E11.9 / "', ['E11.9', '"']);
+  assert.ok(res2.some(f => f.message.includes('ditto characters')));
+
+  // Delimiter issues
+  const res3 = validateClaimLineFormat('E11.9/H36.0', ['E11.9', 'H36.0']);
+  assert.ok(res3.some(f => f.message.includes('separated by exactly " / "')));
+
+  // Brackets, hyphens, spaces
+  const res4 = validateClaimLineFormat('E11-9 / (H36.0)', ['E11-9', '(H36.0)']);
+  assert.ok(res4.some(f => f.message.includes('Hyphens are not allowed')));
+  assert.ok(res4.some(f => f.message.includes('Brackets are not allowed')));
+
+  // Dot rules (3-char vs extended)
+  const res5 = validateClaimLineFormat('E11. / E119', ['E11.', 'E119']);
+  assert.ok(res5.some(f => f.message.includes('3-character codes must exclude the dot')));
+  assert.ok(res5.some(f => f.message.includes('Extended character codes must include the dot')));
+});
+
+test('generateSubmissionPreview formats clean output', () => {
+  // Drop symbols, fix dots, correct delimiter
+  const preview = generateSubmissionPreview(['E11.9+', '*H360', 'T16.']);
+  assert.strictEqual(preview, 'E11.9 / H36.0 / T16');
+});
+

@@ -280,13 +280,18 @@ if (typeof chrome !== 'undefined' && chrome.runtime) {
     // Centralized query proxy for UI (popup/sidepanel)
     if (message.action === 'VALIDATE_CODES') {
       const senderInfo = sender || {};
-      validateCodesArray(message.codes, senderInfo)
+      validateCodesArray(message.codes, senderInfo, message.rawInput)
         .then(res => {
-          sendResponse({ results: res.results, sequenceValidation: res.sequenceValidation });
+          sendResponse({
+            results: res.results,
+            sequenceValidation: res.sequenceValidation,
+            formatValidation: res.formatValidation,
+            submissionPreview: res.submissionPreview
+          });
         })
         .catch(err => {
           console.error('Batch validation error:', err);
-          sendResponse({ results: [], sequenceValidation: null });
+          sendResponse({ results: [], sequenceValidation: null, formatValidation: null, submissionPreview: '' });
         });
       return true;
     }
@@ -315,7 +320,7 @@ if (typeof chrome !== 'undefined' && chrome.runtime) {
     * Validates a list of extracted codes against the internal database.
     * Includes robust prefix-based fallback and correct PMB eligibility check.
     */
-  async function validateCodesArray(codes, senderInfo = {}) {
+  async function validateCodesArray(codes, senderInfo = {}, rawInput = '') {
     const results = [];
     try {
       await ensureDbInitializedAndSeeded();
@@ -387,12 +392,35 @@ if (typeof chrome !== 'undefined' && chrome.runtime) {
       console.error('Sequence validation error:', seqErr);
     }
 
+    // Perform claim-line format validation
+    let formatValidation = null;
+    try {
+      formatValidation = self.validateClaimLineFormat(rawInput, codes);
+    } catch (formatErr) {
+      console.error('Format validation error:', formatErr);
+    }
+
+    // Generate submission preview
+    let submissionPreview = '';
+    try {
+      submissionPreview = self.generateSubmissionPreview(codes);
+    } catch (previewErr) {
+      console.error('Submission preview generation error:', previewErr);
+    }
+
     // If live mode enabled, forward a lightweight update to UI (sidepanel)
     try {
       if (liveModeEnabled) {
         const first = results && results.length ? results[0] : null;
         const codeToSend = first ? (first.normalized || first.raw) : (codes && codes.length ? codes[0] : null);
-        chrome.runtime.sendMessage({ action: 'liveUpdate', code: codeToSend, results, sequenceValidation }, () => {
+        chrome.runtime.sendMessage({
+          action: 'liveUpdate',
+          code: codeToSend,
+          results,
+          sequenceValidation,
+          formatValidation,
+          submissionPreview
+        }, () => {
           if (chrome.runtime.lastError) {
             // non-critical
           }
@@ -402,7 +430,7 @@ if (typeof chrome !== 'undefined' && chrome.runtime) {
       // swallow
     }
 
-    return { results, sequenceValidation };
+    return { results, sequenceValidation, formatValidation, submissionPreview };
   }
 
   /**

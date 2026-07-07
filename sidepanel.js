@@ -423,12 +423,51 @@ document.addEventListener('DOMContentLoaded', () => {
   checkTabPermission();
 });
 
+function updateClaimLinePreview(formatValidation, submissionPreview) {
+  const card = document.getElementById('claim-preview-card');
+  const previewText = document.getElementById('claim-preview-text');
+  const previewStatus = document.getElementById('claim-preview-status');
+  
+  if (!card || !previewText || !previewStatus) return;
+
+  if (!submissionPreview) {
+    card.style.display = 'none';
+    return;
+  }
+
+  card.style.display = 'block';
+  previewText.textContent = submissionPreview;
+
+  if (formatValidation && formatValidation.length > 0) {
+    let html = '<div style="color: var(--danger); font-weight: 700; margin-bottom: 6px;">⚠️ Formatting Warnings:</div>';
+    html += '<ul style="margin: 0; padding-left: 18px; color: var(--text-muted);">';
+    formatValidation.forEach(err => {
+      html += `<li style="margin-bottom: 4px;">${escapeHTML(err.message)}</li>`;
+    });
+    html += '</ul>';
+    previewStatus.innerHTML = html;
+    previewText.style.color = 'var(--warning)';
+    previewText.style.borderColor = 'var(--warning-border)';
+  } else {
+    previewStatus.innerHTML = '<div style="color: var(--primary); font-weight: 700;">✓ Submission format is valid & POPIA/NDoH compliant.</div>';
+    previewText.style.color = '#10b981';
+    previewText.style.borderColor = 'var(--surface-border)';
+  }
+}
+
 // Live updates
 chrome.runtime.onMessage.addListener((msg, sender) => {
   console.log('ClaimAi sidepanel received message:', msg, sender);
 
   if (msg.action === "liveUpdate" && msg.results) {
     currentLiveCodes = msg.results.map(r => r.normalized || r.raw);
+    updateClaimLinePreview(msg.formatValidation, msg.submissionPreview);
+  }
+
+  if (msg.action === "lookup") {
+    // Hide preview on manual search queries
+    const card = document.getElementById('claim-preview-card');
+    if (card) card.style.display = 'none';
   }
 
   if ((msg.action === "liveUpdate" || msg.action === "lookup") && msg.code) {
@@ -440,7 +479,10 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
   }
 
   if (msg.action === 'LOAD_SELECTED_CODE' && msg.code) {
-    // Redirect selected code rendering to showResult to perform clinical audits
+    // Hide preview on manual selected code rendering
+    const card = document.getElementById('claim-preview-card');
+    if (card) card.style.display = 'none';
+    
     if (dataLoaded) {
       showResult(msg.code);
     } else {

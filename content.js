@@ -165,19 +165,20 @@ function validateCodesOnPage(element, codes) {
         // Telemetry is best-effort and should fail silently
     }
 
-    chrome.runtime.sendMessage({ action: 'VALIDATE_CODES', codes: codes }, (response) => {
+    const rawInput = element.isContentEditable ? element.textContent : element.value;
+    chrome.runtime.sendMessage({ action: 'VALIDATE_CODES', codes: codes, rawInput: rawInput }, (response) => {
         if (chrome.runtime.lastError) {
             console.warn('ClaimAi: Validation communication pending background wake-up.', chrome.runtime.lastError);
             return;
         }
         if (response && response.results) {
-            updateVisualBadges(element, response.results, response.sequenceValidation);
-            setupReactObserver(element, response.results, response.sequenceValidation);
+            updateVisualBadges(element, response.results, response.sequenceValidation, response.formatValidation);
+            setupReactObserver(element, response.results, response.sequenceValidation, response.formatValidation);
         }
     });
 }
 
-function updateVisualBadges(element, validationResults, sequenceValidation) {
+function updateVisualBadges(element, validationResults, sequenceValidation, formatValidation) {
     removeBadges(element, false); // Avoid double-cleaning observers during update
 
     if (!validationResults || validationResults.length === 0) return;
@@ -209,15 +210,24 @@ function updateVisualBadges(element, validationResults, sequenceValidation) {
         });
     }
 
-    // B. Render Suggested Primary Diagnosis
+    // B. Render Formatting Level Findings
+    if (formatValidation) {
+        formatValidation.forEach(finding => {
+            const badge = document.createElement('span');
+            badge.className = 'claimai-badge sequence-error show';
+            badge.textContent = `⚠️ Format: ${finding.message}`;
+            badge.title = finding.message;
+            container.appendChild(badge);
+        });
+    }
+
+    // C. Render Suggested Primary Diagnosis
     if (sequenceValidation && sequenceValidation.suggestedPrimary) {
         const badge = document.createElement('span');
         badge.className = 'claimai-badge sequence-suggestion show';
         badge.textContent = `💡 Suggested Primary: ${sequenceValidation.suggestedPrimary}`;
         badge.title = `The current primary diagnosis is prohibited. We suggest swapping or using ${sequenceValidation.suggestedPrimary} as primary.`;
         container.appendChild(badge);
-    }
-
     // C. Render Individual Code Badges
     validationResults.forEach(result => {
         const badge = document.createElement('span');
