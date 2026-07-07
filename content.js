@@ -53,6 +53,20 @@ const badgeStyles = `
     border: 1px solid rgba(255, 255, 255, 0.15);
     box-shadow: 0 2px 10px rgba(13, 111, 138, 0.35);
   }
+  .claimai-badge.sequence-error {
+    background: #dc2626;
+    color: #ffffff;
+    border: 1px dashed #fca5a5;
+  }
+  .claimai-badge.sequence-warning {
+    background: #d97706;
+    color: #ffffff;
+  }
+  .claimai-badge.sequence-suggestion {
+    background: #6366f1;
+    color: #ffffff;
+    box-shadow: 0 2px 10px rgba(99, 102, 241, 0.35);
+  }
 `;
 
 /**
@@ -109,10 +123,13 @@ document.addEventListener('input', (event) => {
     if (!target) return;
 
     const text = target.isContentEditable ? target.textContent : target.value;
-    const icdRegex = /\b[A-Z0-9][0-9]{2}(?:\.[0-9]{1,4})?\b/gi;
+    const icdRegex = /\b[A-Z0-9\+\*][A-Z0-9\+\*\.]{2,}\b/gi; // expanded to match raw inputs and symbols
     let matches = text ? text.match(icdRegex) : null;
 
     if (matches && matches.length > 0) {
+        // Filter matches to remove general non-ICD terms, clean up spacing/slashes
+        matches = matches.map(m => m.trim().toUpperCase()).filter(m => /^[A-Z0-9]/.test(m));
+        
         // Limit matches to the first 20 codes to prevent memory/performance issues
         if (matches.length > 20) {
             matches = matches.slice(0, 20);
@@ -154,13 +171,13 @@ function validateCodesOnPage(element, codes) {
             return;
         }
         if (response && response.results) {
-            updateVisualBadges(element, response.results);
-            setupReactObserver(element, response.results);
+            updateVisualBadges(element, response.results, response.sequenceValidation);
+            setupReactObserver(element, response.results, response.sequenceValidation);
         }
     });
 }
 
-function updateVisualBadges(element, validationResults) {
+function updateVisualBadges(element, validationResults, sequenceValidation) {
     removeBadges(element, false); // Avoid double-cleaning observers during update
 
     if (!validationResults || validationResults.length === 0) return;
@@ -179,6 +196,29 @@ function updateVisualBadges(element, validationResults) {
     container.style.marginTop = '6px';
     container.style.position = 'relative';
 
+    // A. Render Sequence Level Findings (Errors & Warnings)
+    if (sequenceValidation && sequenceValidation.findings) {
+        sequenceValidation.findings.forEach(finding => {
+            const badge = document.createElement('span');
+            const baseCls = 'claimai-badge';
+            const stateCls = (finding.type === 'SYMBOL_WARNING') ? 'sequence-warning' : 'sequence-error';
+            badge.className = `${baseCls} ${stateCls} show`;
+            badge.textContent = finding.message;
+            badge.title = finding.message;
+            container.appendChild(badge);
+        });
+    }
+
+    // B. Render Suggested Primary Diagnosis
+    if (sequenceValidation && sequenceValidation.suggestedPrimary) {
+        const badge = document.createElement('span');
+        badge.className = 'claimai-badge sequence-suggestion show';
+        badge.textContent = `💡 Suggested Primary: ${sequenceValidation.suggestedPrimary}`;
+        badge.title = `The current primary diagnosis is prohibited. We suggest swapping or using ${sequenceValidation.suggestedPrimary} as primary.`;
+        container.appendChild(badge);
+    }
+
+    // C. Render Individual Code Badges
     validationResults.forEach(result => {
         const badge = document.createElement('span');
         const baseCls = 'claimai-badge';
@@ -246,7 +286,7 @@ function removeBadges(element, cleanObserver = true) {
 /**
  * Sets up a MutationObserver to detect if React/other framework rerenders remove our badge container
  */
-function setupReactObserver(element, validationResults) {
+function setupReactObserver(element, validationResults, sequenceValidation) {
     cleanupReactObserver(element);
 
     const parent = element.parentNode;
@@ -265,7 +305,7 @@ function setupReactObserver(element, validationResults) {
         if (badgeRemoved) {
             console.log('ClaimAi: Badge container removed by parent page (React/VDOM render). Re-injecting...');
             observer.disconnect();
-            updateVisualBadges(element, validationResults);
+            updateVisualBadges(element, validationResults, sequenceValidation);
             observer.observe(parent, { childList: true });
         }
     });

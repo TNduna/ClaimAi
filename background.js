@@ -1,6 +1,6 @@
 // background.js
 // Load the database engine as a classic script so we can avoid module bundling
-importScripts('./lib/utils.js', './lib/telemetry.js', './lib/db.js');
+importScripts('./lib/utils.js', './lib/telemetry.js', './lib/db.js', './lib/code-conflicts.js');
 
 if (typeof chrome !== 'undefined' && chrome.runtime) {
   console.log('%cClaimAi Background Service Worker Loaded ✅', 'color: #10b981; font-weight: bold');
@@ -9,6 +9,7 @@ if (typeof chrome !== 'undefined' && chrome.runtime) {
 
   // In-memory PMB lookup — keyed by both dotted and undotted forms
   let pmbMap = null;
+  let daggerAsteriskMap = null;
 
   /**
    * Loads PMB linkages into pmbMap once and caches it.
@@ -37,6 +38,32 @@ if (typeof chrome !== 'undefined' && chrome.runtime) {
       pmbMap = {};
     }
     return pmbMap;
+  }
+
+  /**
+   * Loads Dagger/Asterisk pairings into memory.
+   */
+  async function ensureDaggerAsteriskMap() {
+    if (daggerAsteriskMap) return daggerAsteriskMap;
+    try {
+      const resp = await fetch(chrome.runtime.getURL('rules/dagger-asterisk-pairs.json'));
+      if (!resp.ok) throw new Error(`Dagger-Asterisk fetch failed: ${resp.status}`);
+      const raw = await resp.json();
+      daggerAsteriskMap = {};
+      for (const rawKey of Object.keys(raw)) {
+        const baseKey = rawKey.split('+')[0].trim().toUpperCase();
+        const undotted = baseKey.replace(/[\.\+\*]/g, '');
+        const dotted = baseKey;
+        const entry = raw[rawKey];
+        if (!daggerAsteriskMap[dotted]) daggerAsteriskMap[dotted] = entry;
+        if (!daggerAsteriskMap[undotted]) daggerAsteriskMap[undotted] = entry;
+      }
+      console.log(`ClaimAi: Dagger-Asterisk map loaded (${Object.keys(daggerAsteriskMap).length} entries)`);
+    } catch (e) {
+      console.warn('ClaimAi: Dagger-Asterisk map load failed.', e);
+      daggerAsteriskMap = {};
+    }
+    return daggerAsteriskMap;
   }
 
   // Ensure context menu exists at service worker startup (covers reloads/upgrades)
@@ -254,10 +281,12 @@ if (typeof chrome !== 'undefined' && chrome.runtime) {
     if (message.action === 'VALIDATE_CODES') {
       const senderInfo = sender || {};
       validateCodesArray(message.codes, senderInfo)
-        .then(results => sendResponse({ results }))
+        .then(res => {
+          sendResponse({ results: res.results, sequenceValidation: res.sequenceValidation });
+        })
         .catch(err => {
           console.error('Batch validation error:', err);
-          sendResponse({ results: [] });
+          sendResponse({ results: [], sequenceValidation: null });
         });
       return true;
     }
@@ -295,6 +324,7 @@ if (typeof chrome !== 'undefined' && chrome.runtime) {
     }
     const dbInstance = db;
     const pmb = await ensurePmbMap();
+    const daggerAsterisk = await ensureDaggerAsteriskMap();
 
     for (const rawCode of codes) {
       try {
@@ -349,12 +379,20 @@ if (typeof chrome !== 'undefined' && chrome.runtime) {
       }
     }
 
+    // Perform sequence-level validation
+    let sequenceValidation = null;
+    try {
+      sequenceValidation = self.validateCodingSequence(codes, daggerAsterisk);
+    } catch (seqErr) {
+      console.error('Sequence validation error:', seqErr);
+    }
+
     // If live mode enabled, forward a lightweight update to UI (sidepanel)
     try {
       if (liveModeEnabled) {
         const first = results && results.length ? results[0] : null;
         const codeToSend = first ? (first.normalized || first.raw) : (codes && codes.length ? codes[0] : null);
-        chrome.runtime.sendMessage({ action: 'liveUpdate', code: codeToSend, results }, () => {
+        chrome.runtime.sendMessage({ action: 'liveUpdate', code: codeToSend, results, sequenceValidation }, () => {
           if (chrome.runtime.lastError) {
             // non-critical
           }
@@ -364,7 +402,7 @@ if (typeof chrome !== 'undefined' && chrome.runtime) {
       // swallow
     }
 
-    return results;
+    return { results, sequenceValidation };
   }
 
   /**
