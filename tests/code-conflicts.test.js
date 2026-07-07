@@ -106,3 +106,33 @@ test('generateSubmissionPreview formats clean output', () => {
   assert.strictEqual(preview, 'E11.9 / H36.0 / T16');
 });
 
+test('validateCodingSequence handles HIV rules', () => {
+  // HIV as secondary with manifestation as primary -> should trigger sequencing error & suggest primary swap
+  const { findings, suggestedPrimary, requiresReorder } = validateCodingSequence(['A15.0', 'B20']);
+  assert.ok(findings.some(f => f.message.includes('HIV code must be in the primary position')));
+  assert.strictEqual(suggestedPrimary, 'B20');
+  assert.strictEqual(requiresReorder, true);
+
+  // B22.7 is blocked
+  const res2 = validateCodingSequence(['B22.7']);
+  assert.ok(res2.findings.some(f => f.message.includes('B22.7 (HIV disease resulting in multiple diseases) is invalid')));
+});
+
+test('validateCodingSequence handles TB rules', () => {
+  // TB without U50 -> triggers guidance suggestion
+  const { findings } = validateCodingSequence(['A15.0']);
+  assert.ok(findings.some(f => f.message.includes('category U50.-')));
+});
+
+test('validateCodingSequence handles Neoplasm rules', () => {
+  // Block C97
+  const res1 = validateCodingSequence(['C97']);
+  assert.ok(res1.findings.some(f => f.message.includes('Code C97 (Malignant neoplasms of independent multiple sites) is invalid')));
+
+  // Enforce Z51 as secondary
+  const res2 = validateCodingSequence(['Z51.1', 'C50.9']);
+  assert.ok(res2.findings.some(f => f.message.includes('Z51.0, Z51.1) must be in a secondary position')));
+  assert.strictEqual(res2.suggestedPrimary, 'C50.9');
+});
+
+
