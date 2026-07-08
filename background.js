@@ -489,6 +489,43 @@ if (typeof chrome !== 'undefined' && chrome.runtime) {
       // swallow
     }
 
+    // Update browser action toolbar badge text and colors dynamically
+    try {
+      const tabId = senderInfo.tab ? senderInfo.tab.id : null;
+      if (tabId && typeof chrome !== 'undefined' && chrome.action) {
+        let totalErrors = 0;
+        if (sequenceValidation && sequenceValidation.findings) {
+          totalErrors += sequenceValidation.findings.filter(f => f.type.endsWith('ERROR')).length;
+        }
+        if (formatValidation) {
+          totalErrors += formatValidation.filter(f => f.type.endsWith('ERROR')).length;
+        }
+
+        let totalWarnings = 0;
+        if (sequenceValidation && sequenceValidation.findings) {
+          totalWarnings += sequenceValidation.findings.filter(f => !f.type.endsWith('ERROR')).length;
+        }
+        if (formatValidation) {
+          totalWarnings += formatValidation.filter(f => !f.type.endsWith('ERROR')).length;
+        }
+
+        if (totalErrors > 0) {
+          chrome.action.setBadgeText({ text: totalErrors.toString(), tabId });
+          chrome.action.setBadgeBackgroundColor({ color: '#ef4444', tabId }); // Red
+        } else if (totalWarnings > 0) {
+          chrome.action.setBadgeText({ text: totalWarnings.toString(), tabId });
+          chrome.action.setBadgeBackgroundColor({ color: '#f59e0b', tabId }); // Amber
+        } else if (results && results.length > 0) {
+          chrome.action.setBadgeText({ text: results.length.toString(), tabId });
+          chrome.action.setBadgeBackgroundColor({ color: '#10b981', tabId }); // Green
+        } else {
+          chrome.action.setBadgeText({ text: '', tabId });
+        }
+      }
+    } catch (badgeErr) {
+      console.warn('ClaimAi: Failed to update action badge:', badgeErr);
+    }
+
     return { results, sequenceValidation, formatValidation, submissionPreview };
   }
 
