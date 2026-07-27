@@ -20,18 +20,12 @@ let currentEthicsIndex = 0;
 
 async function loadData() {
   try {
-    // Load JS index and rules into memory (no direct DB initialization from sidepanel)
+    // Load index and rules into memory (no direct DB initialization from sidepanel)
     try {
-      const mod = await import(chrome.runtime.getURL('lib/icd10-index.js'));
-      icd10Index = mod.icd10Index || mod.default || mod || {};
-    } catch (err) {
-      // fallback to JSON if needed
-      try {
-        const resp = await fetch(chrome.runtime.getURL('lib/icd10-index.json'));
-        if (resp.ok) icd10Index = await resp.json();
-      } catch (e) {
-        console.warn('Failed to load icd10 index for sidepanel:', e);
-      }
+      const resp = await fetch(chrome.runtime.getURL('lib/icd10-index.json'));
+      if (resp.ok) icd10Index = await resp.json();
+    } catch (e) {
+      console.warn('Failed to load icd10 index for sidepanel:', e);
     }
 
     const pmbRes2 = await fetch(chrome.runtime.getURL('rules/pmb-linkages.json'));
@@ -238,6 +232,80 @@ function searchMorbidityStandards(query) {
     });
   });
 }
+
+function searchIcd10Codes(query) {
+  const resultsDiv = document.getElementById('icd-search-results');
+  if (!resultsDiv) return;
+
+  if (!query || query.trim().length < 2) {
+    resultsDiv.style.display = 'none';
+    return;
+  }
+
+  const cleanQuery = query.toLowerCase().trim();
+  const isCodeQuery = /^[a-z][0-9]/i.test(cleanQuery);
+  const matches = [];
+
+  if (isCodeQuery) {
+    const normalizedQuery = cleanQuery.replace(/\./g, '').toUpperCase();
+    for (const key of Object.keys(icd10Index)) {
+      const normKey = key.replace(/\./g, '').toUpperCase();
+      if (normKey.startsWith(normalizedQuery)) {
+        if (!matches.some(m => m.code === key || m.code.replace(/\./g, '') === normKey)) {
+          matches.push({ code: key, d: icd10Index[key].d });
+          if (matches.length >= 50) break;
+        }
+      }
+    }
+  } else {
+    for (const key of Object.keys(icd10Index)) {
+      const desc = (icd10Index[key].d || '').toLowerCase();
+      if (desc.includes(cleanQuery)) {
+        const normKey = key.replace(/\./g, '').toUpperCase();
+        if (!matches.some(m => m.code === key || m.code.replace(/\./g, '') === normKey)) {
+          matches.push({ code: key, d: icd10Index[key].d });
+          if (matches.length >= 50) break;
+        }
+      }
+    }
+  }
+
+  if (matches.length === 0) {
+    resultsDiv.innerHTML = '<div style="font-size: 12px; color: var(--text-muted); padding: 8px;">No matching codes found.</div>';
+    resultsDiv.style.display = 'block';
+    return;
+  }
+
+  let html = '';
+  matches.forEach(match => {
+    html += `
+      <div class="search-result-item" data-code="${escapeHTML(match.code)}">
+        <div class="search-result-title">${escapeHTML(match.code)}</div>
+        <div class="search-result-snippet">${escapeHTML(match.d)}</div>
+      </div>
+    `;
+  });
+
+  resultsDiv.innerHTML = html;
+  resultsDiv.style.display = 'block';
+
+  // Bind click listeners
+  resultsDiv.querySelectorAll('.search-result-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const code = item.getAttribute('data-code');
+      const tabScan = document.getElementById('tab-scan');
+      if (tabScan) {
+        tabScan.click();
+      }
+      const previewCard = document.getElementById('claim-preview-card');
+      if (previewCard) {
+        previewCard.style.display = 'none';
+      }
+      showResult(code);
+    });
+  });
+}
+
 
 function getExcerptForFinding(finding) {
   let ruleCode = null;
@@ -484,7 +552,20 @@ async function showResult(code) {
   // Hide skeleton loader once query completes
   skeleton.style.display = 'none';
 
-  let html = `<div class="card">`;
+  let cardClass = 'card';
+  if (!(icdData || pmbData || daData)) {
+    if (ecCheck) {
+      cardClass += ' card-info';
+    } else {
+      cardClass += ' card-warning';
+    }
+  } else if (agCheck) {
+    cardClass += ' card-danger';
+  } else if (hrCheck && hrCheck.length > 0) {
+    cardClass += ' card-warning';
+  }
+
+  let html = `<div class="${cardClass}">`;
   const description = icdData?.d || pmbData?.pmbDescription || pmbData?.icdDescription || (ecCheck ? `Injury Category: ${ecCheck.category}` : 'No description available.');
 
   if (icdData || pmbData || daData) {
@@ -601,6 +682,18 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // ICD-10 Search binder
+  const icdSearchInput = document.getElementById('icd-search-input');
+  if (icdSearchInput) {
+    let debounceTimer = null;
+    icdSearchInput.addEventListener('input', () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        searchIcd10Codes(icdSearchInput.value);
+      }, 200);
+    });
+  }
+
   // Ethics tip rotator
   const nextTipBtn = document.getElementById('next-tip-btn');
   if (nextTipBtn) {
@@ -669,7 +762,7 @@ document.addEventListener('DOMContentLoaded', () => {
   checkTabPermission();
 });
 
-function updateClaimLinePreview(formatValidation, submissionPreview, sequenceValidation) {
+function updateClaimLinePreview(formatValidation, submissionPreview, sequenceValidation, results) {
   const card = document.getElementById('claim-preview-card');
   const previewText = document.getElementById('claim-preview-text');
   const previewStatus = document.getElementById('claim-preview-status');
@@ -726,14 +819,29 @@ function updateClaimLinePreview(formatValidation, submissionPreview, sequenceVal
     `;
   }
 
+  const hasInvalidCodes = results && results.some(r => !r.isValid);
+
   if (html === '') {
-    previewStatus.innerHTML = '<div style="color: var(--primary); font-weight: 700;">✓ Submission format is valid & POPIA/NDoH compliant.</div>';
-    previewText.style.color = '#10b981';
-    previewText.style.borderColor = 'var(--surface-border)';
+    if (hasInvalidCodes) {
+      previewStatus.innerHTML = '<div style="color: var(--warning); font-weight: 700;">Format only — code unrecognized in database.</div>';
+      previewText.style.color = 'var(--warning)';
+      previewText.style.borderColor = 'var(--warning-border)';
+      card.className = 'card card-warning';
+    } else {
+      previewStatus.innerHTML = '<div style="color: var(--primary); font-weight: 700;">✓ Submission format is valid & POPIA/NDoH compliant.</div>';
+      previewText.style.color = '#10b981';
+      previewText.style.borderColor = 'var(--surface-border)';
+      card.className = 'card';
+    }
   } else {
     previewStatus.innerHTML = html;
     previewText.style.color = 'var(--warning)';
     previewText.style.borderColor = 'var(--warning-border)';
+    if (formatValidation && formatValidation.length > 0) {
+      card.className = 'card card-danger';
+    } else {
+      card.className = 'card card-warning';
+    }
   }
 }
 
@@ -743,7 +851,7 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
 
   if (msg.action === "liveUpdate" && msg.results) {
     currentLiveCodes = msg.results.map(r => r.normalized || r.raw);
-    updateClaimLinePreview(msg.formatValidation, msg.submissionPreview, msg.sequenceValidation);
+    updateClaimLinePreview(msg.formatValidation, msg.submissionPreview, msg.sequenceValidation, msg.results);
   }
 
   if (msg.action === "lookup") {
@@ -795,7 +903,10 @@ function renderDetails(data) {
       pmbEl.className = 'mt-3 text-zinc-400 text-sm';
     }
   }
-  if (card) card.style.display = '';
+  if (card) {
+    card.className = 'card';
+    card.style.display = '';
+  }
 }
 
 function renderUnknown(code) {
@@ -810,7 +921,10 @@ function renderUnknown(code) {
     pmbEl.textContent = 'Unknown';
     pmbEl.className = 'status-badge unknown';
   }
-  if (card) card.style.display = '';
+  if (card) {
+    card.className = 'card card-warning';
+    card.style.display = '';
+  }
 }
 
 /**

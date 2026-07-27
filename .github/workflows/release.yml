@@ -27,7 +27,15 @@ jobs:
             -x "*.gemini*" \
             -x "README.md" \
             -x "SECURITY.md" \
-            -x "ClaimAi/.git*"
+            -x "ClaimAi/.git*" \
+            -x "ICD-10-CM/*" \
+            -x "scripts/*" \
+            -x "lib/icd10-index.js" \
+            -x "rules/pmb-normalized.json" \
+            -x "rules/*.csv" \
+            -x "ClaimAi/data/*" \
+            -x "ClaimAi/lib/*" \
+            -x "ClaimAi/convert-icd.js"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

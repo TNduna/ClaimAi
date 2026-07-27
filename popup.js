@@ -7,15 +7,24 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Fetch active tab state to show page-specific coding metrics
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    chrome.tabs.sendMessage(tab.id, { action: 'GET_PAGE_METRICS' }, (response) => {
-      if (statusText) {
-        if (response && response.validCount !== undefined) {
-          statusText.textContent = `Active: Validated ${response.validCount} code(s) on this page.`;
-        } else {
-          statusText.textContent = 'Inactive: Open a medical billing form to start.';
+    if (tab && tab.id && tab.url && /^https?:\/\//.test(tab.url)) {
+      chrome.tabs.sendMessage(tab.id, { action: 'GET_PAGE_METRICS' }, (response) => {
+        if (chrome.runtime.lastError) {
+          // Content script not available on this tab — expected on non-injected pages
+          if (statusText) statusText.textContent = 'Inactive: Open a medical billing form to start.';
+          return;
         }
-      }
-    });
+        if (statusText) {
+          if (response && response.validCount !== undefined) {
+            statusText.textContent = `Active: Validated ${response.validCount} code(s) on this page.`;
+          } else {
+            statusText.textContent = 'Inactive: Open a medical billing form to start.';
+          }
+        }
+      });
+    } else {
+      if (statusText) statusText.textContent = 'Inactive: Open a medical billing form to start.';
+    }
   } catch (e) {
     if (statusText) statusText.textContent = 'Inactive: Unable to query tab.';
   }

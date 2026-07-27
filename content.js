@@ -11,9 +11,11 @@ const badgeStyles = `
   .claimai-badge-container {
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    margin-top: 6px;
-    position: relative;
+    gap: 4px;
+    position: fixed;
+    z-index: 2147483647;
+    pointer-events: none;
+    max-width: 420px;
   }
   .claimai-badge {
     position: relative;
@@ -38,6 +40,10 @@ const badgeStyles = `
   .claimai-badge.show {
     opacity: 1;
     transform: translateY(0);
+  }
+  .claimai-badge.hide {
+    opacity: 0;
+    transform: translateY(-6px);
   }
   .claimai-badge.valid {
     background: #16a34a;
@@ -173,7 +179,7 @@ function validateCodesOnPage(element, codes) {
         }
         if (response && response.results) {
             updateVisualBadges(element, response.results, response.sequenceValidation, response.formatValidation);
-            setupReactObserver(element, response.results, response.sequenceValidation, response.formatValidation);
+            // Badges are now ephemeral (auto-dismiss), no need to re-inject via observer
         }
     });
 }
@@ -191,11 +197,7 @@ function updateVisualBadges(element, validationResults, sequenceValidation, form
 
     const container = document.createElement('div');
     container.className = 'claimai-badge-container';
-    container.style.display = 'flex';
-    container.style.flexDirection = 'column';
-    container.style.gap = '6px';
-    container.style.marginTop = '6px';
-    container.style.position = 'relative';
+    container.dataset.claimaiFor = '';
 
     // A. Render Sequence Level Findings (Errors & Warnings)
     if (sequenceValidation && sequenceValidation.findings) {
@@ -228,6 +230,7 @@ function updateVisualBadges(element, validationResults, sequenceValidation, form
         badge.textContent = `💡 Suggested Primary: ${sequenceValidation.suggestedPrimary}`;
         badge.title = `The current primary diagnosis is prohibited. We suggest swapping or using ${sequenceValidation.suggestedPrimary} as primary.`;
         container.appendChild(badge);
+    }
     // C. Render Individual Code Badges
     validationResults.forEach(result => {
         const badge = document.createElement('span');
@@ -259,11 +262,33 @@ function updateVisualBadges(element, validationResults, sequenceValidation, form
         container.appendChild(badge);
     });
 
-    if (element.nextSibling) {
-        element.parentNode.insertBefore(container, element.nextSibling);
-    } else if (element.parentNode) {
-        element.parentNode.appendChild(container);
+    // Position the container as a fixed overlay directly below (or above) the input
+    const rect = element.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom;
+    if (spaceBelow >= 60) {
+        // Place below the input
+        container.style.top = `${rect.bottom + 4}px`;
+    } else {
+        // Not enough room below — place above the input
+        container.style.bottom = `${window.innerHeight - rect.top + 4}px`;
     }
+    container.style.left = `${rect.left}px`;
+    document.body.appendChild(container);
+
+    // Auto-dismiss badges after 4 seconds
+    setTimeout(() => {
+        const badges = container.querySelectorAll('.claimai-badge');
+        badges.forEach(badge => {
+            badge.classList.remove('show');
+            badge.classList.add('hide');
+        });
+        // Remove container from DOM after fade-out transition completes
+        setTimeout(() => {
+            if (container.parentNode) {
+                container.remove();
+            }
+        }, 300);
+    }, 4000);
 }
 
 function removeBadges(element, cleanObserver = true) {
@@ -277,20 +302,8 @@ function removeBadges(element, cleanObserver = true) {
         debounceTimers.delete(element);
     }
 
-    const parent = element.parentNode;
-    if (!parent) return;
-
-    // Find the immediate sibling that is the badge container (skipping text/whitespace nodes)
-    let sibling = element.nextSibling;
-    while (sibling) {
-        if (sibling.nodeType === Node.ELEMENT_NODE) {
-            if (sibling.classList.contains('claimai-badge-container')) {
-                sibling.remove();
-            }
-            break;
-        }
-        sibling = sibling.nextSibling;
-    }
+    // Remove all active badge containers (they are fixed-positioned on document.body)
+    document.querySelectorAll('.claimai-badge-container').forEach(c => c.remove());
 }
 
 /**

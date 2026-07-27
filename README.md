@@ -11,12 +11,20 @@ It validates ICD-10 codes in real-time as users type, provides instant visual fe
 1. **Real-Time Validation**: Parses and matches inputs against the complete South African ICD-10 clinical classification database.
 2. **PMB (Prescribed Minimum Benefits) Identification**: Flags PMB-eligible conditions instantly to ensure correct scheme funding and billing.
 3. **Demographic Rules Validation**: Evaluates patient age and gender against diagnostic constraints to prevent demographic coding mismatches.
-4. **Clinical Rule Audits**: 
-   - **High-Risk Billing Pairs**: Identifies conflicting codes entered on the same form.
-   - **Dagger & Asterisk Manifestations**: Guides matching dual-coding standards.
-   - **External Causes (S & T Codes)**: Evaluates injury diagnostics and warns of missing external cause markers.
-5. **DOM Framework Compatibility**: Support for React, Shadow DOM web components, contenteditable rich editors, and iframe inputs.
-6. **Privacy First**: Operates entirely client-side. No clinical details, PII, or PHI are sent over the network, ensuring compliance with **POPIA** and **HIPAA**.
+4. **Clinical Rule Audits & Morbidity Standards**: Fully complies with South African Morbidity Coding Standards:
+   - **Prohibited Primary Diagnoses (GSN0001/GSN0002)**: Flags invalid primary diagnoses such as External Causes (V01-Y98), Causative Agents (B95-B98), Outcomes of Delivery (Z37), Asymptomatic HIV Status (Z21), and Sequelae (I69).
+   - **Specificity & X Placeholders (GSN0009)**: Ensures required 5th-character specificity on categories like M45, T08, T10, T12, V98, and V99, and enforces 'X' as the 4th character placeholder.
+   - **Inappropriate 5th Character Rejections (GSN0011)**: Rejects anatomical specificity mismatches (e.g. trigger finger M65.3 requiring hand subdivision `4`, or invalid bursitis codes like M71.56).
+   - **HIV / AIDS Rules (DSN0101)**: Enforces HIV codes in the primary position when coded alongside manifestations, and flags invalid clinical codes (e.g., B22.7).
+   - **Neoplasms & Therapy Sequencing (DSN0201)**: Rejects multiple site combination codes like C97 and ensures radiotherapy/chemotherapy session codes (Z51.0, Z51.1) are positioned secondarily.
+   - **Tuberculosis Drug Resistance (DSN2201)**: Reminds coders to include drug resistance status (category U50.-) when active TB is coded.
+5. **Strict Claim Line Formatting (GSN0103/4/5)**:
+   - Enforces a maximum of 10 codes per claim line.
+   - Flags forbidden ditto characters (`"`) and incorrect delimiters (requires exactly ` / ` spacing).
+   - Blocks brackets `()` and hyphens `-`.
+   - Enforces dot rules (3-character codes must exclude the dot, while extended codes must include it).
+6. **DOM Framework Compatibility**: Support for React, Shadow DOM web components, contenteditable rich editors, and iframe inputs. Employs MutationObservers to prevent frameworks from wiping injected badges.
+7. **Privacy First**: Operates entirely client-side via IndexedDB. No clinical details, PII, or PHI are sent over the network, ensuring compliance with **POPIA** and **HIPAA**.
 
 ---
 
@@ -46,11 +54,25 @@ When navigating to your medical billing portal:
 claimai-extension/
 ├── .github/workflows/
 │   └── release.yml                 # Automated release packaging pipeline
+├── ClaimAi/
+│   └── SA_ICD10_Morbidity_Coding_Standards.md  # Official compliance reference
 ├── ICD-10-CM/
 │   └── diagnosis_codes.json        # Source ICD-10 reference dataset
 ├── lib/
-│   ├── db.js                       # IndexedDB wrapper for local queries
-│   └── icd10-index.json            # Compressed ICD-10 index for fast seeding
+│   ├── validators/                 # Centralized validation engines
+│   │   ├── clinical-validator.js   # Age, gender, and clinical rules validator
+│   │   ├── format-validator.js     # Delimiter, ditto character, and bracket formats
+│   │   ├── sequence-validator.js   # Sequencing rules (HIV, Neoplasms, TB resistance)
+│   │   └── specificity-validator.js# 5th-character specificity checks
+│   ├── bookmarks.js                # Code bookmarking controller
+│   ├── code-conflicts.js           # Conflict resolution and diagnostic logic
+│   ├── db.js                       # IndexedDB wrapper and schema migration coordinator
+│   ├── icd10-index.js              # In-memory ICD indexing library
+│   ├── icd10-index.json            # Compressed ICD-10 index for fast seeding
+│   ├── id-parser.js                # South African ID gender/birthdate validator
+│   ├── load-icd-data.js            # Initial dataset loader
+│   ├── scheme-rules.js             # Scheme rules loader
+│   └── telemetry.js                # POPIA-compliant, local telemetry aggregator
 ├── rules/
 │   ├── age-gender-rules.json       # Clinical age/gender constraints
 │   ├── dagger-asterisk-pairs.json  # Dual coding pairings index
@@ -58,7 +80,10 @@ claimai-extension/
 │   ├── high-risk-pairs.json        # Conflicting/duplicate code pairs
 │   └── pmb-linkages.json           # Prescribed Minimum Benefit linkages
 ├── tests/
-│   └── manual_test.html            # Web sandbox testing inputs, iframes, and Shadow DOM
+│   ├── code-conflicts.test.js      # Testing suite for clinical validators
+│   ├── manual_test.html            # Web sandbox testing inputs, iframes, and Shadow DOM
+│   ├── morbidity-standards-coverage.test.js # Verifies compliance with SA Morbidity Standards
+│   └── utils.test.js               # Test suite for telemetry and parsing utilities
 ├── background.js                   # Service worker, manages DB init and proxy queries
 ├── content.js                      # Content script, parses page input and injects badges
 ├── inject.css                      # Styling for in-page visual badges
@@ -84,4 +109,4 @@ When pushing code changes to GitHub:
    git tag v1.0.1
    git push origin v1.0.1
    ```
-3. The GitHub Actions release workflow will trigger automatically to bundle the extension files into a zip package (`claimai-extension.zip`) and attach it to a draft draft release on your GitHub repository.
+3. The GitHub Actions release workflow will trigger automatically to bundle the extension files into a zip package (`claimai-extension.zip`) and attach it to a draft release on your GitHub repository.

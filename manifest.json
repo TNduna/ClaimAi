@@ -27,9 +27,20 @@
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["lib/utils.js", "lib/telemetry.js", "content.js"],
-      "css": ["inject.css"],
+      "matches": [
+        "<all_urls>"
+      ],
+      "exclude_matches": [
+        "*://*.grok.com/*"
+      ],
+      "js": [
+        "lib/utils.js",
+        "lib/telemetry.js",
+        "content.js"
+      ],
+      "css": [
+        "inject.css"
+      ],
       "run_at": "document_end",
       "all_frames": true,
       "match_about_blank": true
@@ -44,8 +55,13 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["ICD-10-CM/*.json", "lib/*.js", "lib/*.json", "rules/*.json"],
-      "matches": ["<all_urls>"]
+      "resources": [
+        "lib/*.json",
+        "rules/*.json"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
     }
   ]
 }

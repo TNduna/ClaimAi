@@ -9,8 +9,15 @@
 <body>
   <!-- Header & Live Update Controls -->
   <div class="panel-header-container">
-    <div class="header">ClaimAi</div>
+    <div class="brand">
+      <svg class="brand-mark" width="24" height="24" viewBox="0 0 40 40" aria-hidden="true">
+        <path d="M20 6 L34 32 L26 32 L20 20 L14 32 L6 32 Z" fill="#fafafa"/>
+        <path d="M13 26 L18 32 L28 20" stroke="var(--primary)" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span class="brand-word">Claim<span class="brand-ai">Ai</span></span>
+    </div>
     <div class="live-toggle-container">
+      <span class="live-dot" aria-hidden="true"></span>
       <label for="live-toggle" class="live-label">Live</label>
       <input type="checkbox" id="live-toggle" title="Toggle live updating from page input">
     </div>
@@ -18,8 +25,8 @@
 
   <!-- Tab Navigation -->
   <div class="tabs-container">
-    <button class="tab-button active" id="tab-scan">Audits & Live Scan</button>
-    <button class="tab-button" id="tab-standards">Standards & Explorer</button>
+    <button class="tab-button active" id="tab-scan">Audits & Scan</button>
+    <button class="tab-button" id="tab-standards">Rules Explorer</button>
   </div>
 
   <div id="scan-tab-content">
@@ -72,6 +79,13 @@
       <div class="context-label">Search Morbidity Standards</div>
       <input type="text" id="standards-search-input" placeholder="Search guidelines (e.g. HIV, TB, GSN0001)..." style="background: hsl(240, 6%, 6%); border: 1px solid var(--surface-border); color: var(--text-primary); padding: 8px 12px; border-radius: 8px; font-size: 13px; font-weight: 500; width: 100%; box-sizing: border-box;">
       <div id="standards-search-results" class="search-results-container" style="margin-top: 12px; display: none;"></div>
+    </div>
+
+    <!-- ICD-10 Code Lookup & Search -->
+    <div class="card">
+      <div class="context-label">ICD-10 Clinical Code Lookup</div>
+      <input type="text" id="icd-search-input" placeholder="Search code or keyword (e.g. E33, tuberculosis)..." style="background: hsl(240, 6%, 6%); border: 1px solid var(--surface-border); color: var(--text-primary); padding: 8px 12px; border-radius: 8px; font-size: 13px; font-weight: 500; width: 100%; box-sizing: border-box;">
+      <div id="icd-search-results" class="search-results-container" style="margin-top: 12px; display: none;"></div>
     </div>
 
     <!-- Rule Explorer -->
