@@ -1,0 +1,146 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 240 5.9% 10%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 240 5.9% 10%;
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 224 14% 12%;
+    --foreground: 220 15% 96%;
+    --card: 220 12% 14%;
+    --card-foreground: 220 16% 96%;
+    --popover: 220 12% 18%;
+    --popover-foreground: 220 16% 96%;
+    --primary: 210 22% 85%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 12% 22%;
+    --secondary-foreground: 220 18% 86%;
+    --muted: 220 10% 24%;
+    --muted-foreground: 220 12% 68%;
+    --accent: 217 98% 62%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 354 85% 67%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 10% 28%;
+    --input: 220 12% 18%;
+    --ring: 217 98% 62%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-synth-bg text-synth-text-1 antialiased;
+    font-family: "SF Pro Text", Inter, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply text-synth-text-1;
+    font-family: "SF Pro Display", "SF Pro Text", Inter, system-ui, sans-serif;
+  }
+}
+
+@layer components {
+  .wrap {
+    @apply max-w-[1120px] mx-auto px-7;
+  }
+
+  .wrap-sm {
+    @apply max-w-[760px] mx-auto px-7;
+  }
+
+  .section-title {
+    @apply font-serif text-[clamp(28px,4vw,44px)] font-normal leading-[1.12] tracking-[-0.5px] text-synth-text-1 text-center;
+  }
+
+  .eyebrow {
+    @apply text-[11px] font-semibold uppercase tracking-[1.5px] text-synth-accent text-center mb-3;
+  }
+
+  .section-sub {
+    @apply text-[15px] text-synth-text-2 text-center leading-[1.7] max-w-[520px] mx-auto mb-[52px];
+  }
+
+  .font-display {
+    font-family: "SF Pro Display", "SF Pro Text", Inter, system-ui, sans-serif;
+  }
+
+  .font-text {
+    font-family: "SF Pro Text", Inter, system-ui, sans-serif;
+  }
+
+  .reveal {
+    @apply opacity-0 translate-y-[18px] transition-all duration-500;
+  }
+
+  .reveal.visible {
+    @apply opacity-100 translate-y-0;
+  }
+}
+
+@layer utilities {
+  .animate-fade-in {
+    animation: fadeIn 0.2s ease forwards;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  .animate-blink {
+    animation: blink 2s infinite;
+  }
+
+  .sky-gradient {
+    background-color: #99CCED;
+    background-image: linear-gradient(to bottom, #99CCED 0%, #F2F7FA 100%), url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='128' height='128' viewBox='0 0 128 128'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='128' height='128' filter='url(%23noise)' opacity='0.18'/%3E%3C/svg%3E");
+    background-repeat: no-repeat, repeat;
+    background-size: cover, 128px 128px;
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.25; }
+  }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(10, 10, 15, 0.15);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(10, 10, 15, 0.25);
+}

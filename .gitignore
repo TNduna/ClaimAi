@@ -1,6 +1,12 @@
 # Codebase Exclusions
 Romanstone/
 
+# Dependencies & Build Output
+node_modules/
+dist/
+.venv/
+__pycache__/
+
 # System Files & Logs
 *.log
 .DS_Store
