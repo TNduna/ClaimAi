@@ -1,18 +1,21 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ClaimAi</title>
   <link rel="stylesheet" href="sidepanel.css">
 </head>
+
 <body>
   <!-- Header & Live Update Controls -->
   <div class="panel-header-container">
     <div class="brand">
       <svg class="brand-mark" width="24" height="24" viewBox="0 0 40 40" aria-hidden="true">
-        <path d="M20 6 L34 32 L26 32 L20 20 L14 32 L6 32 Z" fill="#fafafa"/>
-        <path d="M13 26 L18 32 L28 20" stroke="var(--primary)" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M20 6 L34 32 L26 32 L20 20 L14 32 L6 32 Z" fill="#fafafa" />
+        <path d="M13 26 L18 32 L28 20" stroke="var(--primary)" stroke-width="4" fill="none" stroke-linecap="round"
+          stroke-linejoin="round" />
       </svg>
       <span class="brand-word">Claim<span class="brand-ai">Ai</span></span>
     </div>
@@ -33,7 +36,8 @@
     <!-- Dynamic Site Access Permission Banner -->
     <div id="permission-banner" class="permission-banner" style="display: none;">
       <div style="font-weight: 600; color: #fb923c; margin-bottom: 4px;">⚠️ Permission Required</div>
-      <div style="font-size: 11px; color: #e4e4e7; margin-bottom: 8px;">ClaimAi is disabled on this site to protect your privacy. Enable it to begin code scanning.</div>
+      <div style="font-size: 11px; color: #e4e4e7; margin-bottom: 8px;">ClaimAi is disabled on this site to protect your
+        privacy. Enable it to begin code scanning.</div>
       <button id="grant-permission-btn" class="permission-btn">Enable ClaimAi</button>
     </div>
 
@@ -49,6 +53,14 @@
       </div>
     </div>
 
+    <!-- ICD-10 Code Lookup & Search -->
+    <div class="card">
+      <div class="context-label">ICD-10 Clinical Code Lookup</div>
+      <input type="text" id="icd-search-input" placeholder="Search code or keyword (e.g. E33, tuberculosis)..."
+        style="background: hsl(240, 6%, 6%); border: 1px solid var(--surface-border); color: var(--text-primary); padding: 8px 12px; border-radius: 8px; font-size: 13px; font-weight: 500; width: 100%; box-sizing: border-box;">
+      <div id="icd-search-results" class="search-results-container" style="margin-top: 12px; display: none;"></div>
+    </div>
+
     <!-- Results Area (Populated dynamically) -->
     <div id="result">
       <div class="card" id="code-card" style="display: none;">
@@ -61,7 +73,9 @@
     <!-- Claim Line Preview & Validator Card -->
     <div class="card" id="claim-preview-card" style="display: none; border-color: var(--surface-border);">
       <div class="context-label">Claim Line Preview</div>
-      <div id="claim-preview-text" style="font-family: monospace; background: hsl(240, 6%, 6%); border: 1px solid var(--surface-border); padding: 10px; border-radius: 8px; font-size: 13px; color: #10b981; word-break: break-all; margin-top: 8px; font-weight: bold; letter-spacing: 0.05em;">—</div>
+      <div id="claim-preview-text"
+        style="font-family: monospace; background: hsl(240, 6%, 6%); border: 1px solid var(--surface-border); padding: 10px; border-radius: 8px; font-size: 13px; color: #10b981; word-break: break-all; margin-top: 8px; font-weight: bold; letter-spacing: 0.05em;">
+        —</div>
       <div id="claim-preview-status" style="margin-top: 10px; font-size: 11px;"></div>
     </div>
   </div>
@@ -70,22 +84,21 @@
     <!-- Ethics Tips Widget -->
     <div class="card ethics-tip-card" id="ethics-tip-card">
       <div class="context-label">Ethics Quick Tip</div>
-      <div id="ethics-tip-text" style="font-size: 13px; line-height: 1.5; color: var(--text-muted); font-style: italic;">Loading ethics tip...</div>
-      <button class="permission-btn mt-3" id="next-tip-btn" style="margin-top: 10px; font-size: 11px; padding: 6px 12px; width: auto; display: inline-block;">Next Tip</button>
+      <div id="ethics-tip-text"
+        style="font-size: 13px; line-height: 1.5; color: var(--text-muted); font-style: italic;">Loading ethics tip...
+      </div>
+      <button class="permission-btn mt-3" id="next-tip-btn"
+        style="margin-top: 10px; font-size: 11px; padding: 6px 12px; width: auto; display: inline-block;">Next
+        Tip</button>
     </div>
 
     <!-- Standards Search -->
     <div class="card">
       <div class="context-label">Search Morbidity Standards</div>
-      <input type="text" id="standards-search-input" placeholder="Search guidelines (e.g. HIV, TB, GSN0001)..." style="background: hsl(240, 6%, 6%); border: 1px solid var(--surface-border); color: var(--text-primary); padding: 8px 12px; border-radius: 8px; font-size: 13px; font-weight: 500; width: 100%; box-sizing: border-box;">
-      <div id="standards-search-results" class="search-results-container" style="margin-top: 12px; display: none;"></div>
-    </div>
-
-    <!-- ICD-10 Code Lookup & Search -->
-    <div class="card">
-      <div class="context-label">ICD-10 Clinical Code Lookup</div>
-      <input type="text" id="icd-search-input" placeholder="Search code or keyword (e.g. E33, tuberculosis)..." style="background: hsl(240, 6%, 6%); border: 1px solid var(--surface-border); color: var(--text-primary); padding: 8px 12px; border-radius: 8px; font-size: 13px; font-weight: 500; width: 100%; box-sizing: border-box;">
-      <div id="icd-search-results" class="search-results-container" style="margin-top: 12px; display: none;"></div>
+      <input type="text" id="standards-search-input" placeholder="Search guidelines (e.g. HIV, TB, GSN0001)..."
+        style="background: hsl(240, 6%, 6%); border: 1px solid var(--surface-border); color: var(--text-primary); padding: 8px 12px; border-radius: 8px; font-size: 13px; font-weight: 500; width: 100%; box-sizing: border-box;">
+      <div id="standards-search-results" class="search-results-container" style="margin-top: 12px; display: none;">
+      </div>
     </div>
 
     <!-- Rule Explorer -->
@@ -100,19 +113,22 @@
   <!-- Usage & Privacy (POPIA-compliant Telemetry) -->
   <div class="card privacy-card">
     <div class="context-label">Usage & Privacy</div>
-    
+
     <div class="telemetry-toggle-row">
-      <span class="telemetry-toggle-label">Share Anonymous Analytics</span>
-      <input type="checkbox" id="telemetry-toggle" title="Opt-in/out of anonymous telemetry">
+      <span class="telemetry-toggle-label">Enable Local Activity Log</span>
+      <input type="checkbox" id="telemetry-toggle" title="Show a personal, on-device usage log">
     </div>
-    
+
     <div class="telemetry-info-text">
-      Help us improve ClaimAi by sharing anonymous usage stats. No patient PII/PHI or code details are ever tracked.
+      Tracks your own validations, lookups, and active time on this device only. Nothing is transmitted anywhere —
+      there's no server to send it to. No patient PII/PHI or code details are ever recorded.
     </div>
 
     <div class="telemetry-dashboard" id="telemetry-dashboard" style="display: none;">
       <hr class="telemetry-divider">
-      <div style="font-size: 11px; font-weight: 700; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase;">Local Activity Log</div>
+      <div
+        style="font-size: 11px; font-weight: 700; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase;">
+        Local Activity Log</div>
       <div class="telemetry-stats-grid">
         <div class="telemetry-stat-item">
           <div class="telemetry-stat-num" id="stats-validations">0</div>
@@ -128,11 +144,14 @@
         </div>
       </div>
 
-      <button id="view-payload-btn" class="permission-btn mt-3" style="background-color: var(--surface-border); border: 1px solid var(--surface-border); color: var(--text-primary); margin-top: 12px;">View Raw Payload</button>
-      
+      <button id="view-payload-btn" class="permission-btn mt-3"
+        style="background-color: var(--surface-border); border: 1px solid var(--surface-border); color: var(--text-primary); margin-top: 12px;">View
+        Raw Payload</button>
+
       <div id="payload-display-container" style="display: none; margin-top: 12px; text-align: left;">
         <div style="font-size: 10px; color: var(--text-muted); margin-bottom: 4px;">ANONYMOUS REPORT SCHEMA:</div>
-        <pre id="telemetry-payload-pre" style="background: hsl(240, 6%, 6%); border: 1px solid var(--surface-border); padding: 8px; border-radius: 8px; font-family: monospace; font-size: 10px; color: var(--text-muted); overflow-x: auto; margin: 0;"></pre>
+        <pre id="telemetry-payload-pre"
+          style="background: hsl(240, 6%, 6%); border: 1px solid var(--surface-border); padding: 8px; border-radius: 8px; font-family: monospace; font-size: 10px; color: var(--text-muted); overflow-x: auto; margin: 0;"></pre>
       </div>
     </div>
   </div>
@@ -141,4 +160,5 @@
   <script src="lib/telemetry.js"></script>
   <script src="sidepanel.js"></script>
 </body>
+
 </html>

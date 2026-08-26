@@ -62,12 +62,12 @@ async function loadMorbidityStandards() {
     const resp = await fetch(chrome.runtime.getURL('ClaimAi/SA_ICD10_Morbidity_Coding_Standards.md'));
     if (!resp.ok) throw new Error('Failed to load morbidity standards MD file');
     const mdText = await resp.text();
-    
+
     // Parse sections
     const lines = mdText.split('\n');
     let currentSection = null;
     parsedSections = [];
-    
+
     for (const line of lines) {
       if (line.startsWith('## ') || line.startsWith('### ')) {
         if (currentSection) {
@@ -90,14 +90,14 @@ async function loadMorbidityStandards() {
     if (currentSection) {
       parsedSections.push(currentSection);
     }
-    
+
     // Extract Ethics Tips from the Ethics section
     const ethicsSection = parsedSections.find(s => s.id.includes('ethics'));
     if (ethicsSection) {
       const principles = ethicsSection.body.split(/\n\s*\d+[\)\.]\s*/);
       ethicsTips = principles.slice(1).map(p => p.trim()).filter(p => p.length > 0);
     }
-    
+
     // Fallback ethics tips if parsing failed
     if (ethicsTips.length === 0) {
       ethicsTips = [
@@ -107,7 +107,7 @@ async function loadMorbidityStandards() {
         "Clinical coders shall ensure that clinical record content justifies selection of diagnosis, procedures, and treatment."
       ];
     }
-    
+
     renderRuleExplorer();
     showRandomEthicsTip();
   } catch (e) {
@@ -139,15 +139,15 @@ function formatMarkdownToHTML(mdText) {
 function renderRuleExplorer() {
   const container = document.getElementById('rule-explorer-container');
   if (!container) return;
-  
+
   // Filter sections that represent validation rules or GSN/DSN guidelines
   const ruleSections = parsedSections.filter(s => s.code || s.id.includes('rule') || s.title.includes('GSN') || s.title.includes('DSN'));
-  
+
   if (ruleSections.length === 0) {
     container.innerHTML = '<div style="font-size: 12px; color: var(--text-muted);">No rules found.</div>';
     return;
   }
-  
+
   let html = '';
   ruleSections.forEach(section => {
     const formattedBody = formatMarkdownToHTML(section.body);
@@ -160,7 +160,7 @@ function renderRuleExplorer() {
       </details>
     `;
   });
-  
+
   container.innerHTML = html;
 }
 
@@ -174,24 +174,24 @@ function showRandomEthicsTip() {
 function searchMorbidityStandards(query) {
   const resultsDiv = document.getElementById('standards-search-results');
   if (!resultsDiv) return;
-  
+
   if (!query || query.trim().length < 2) {
     resultsDiv.style.display = 'none';
     return;
   }
-  
+
   const cleanQuery = query.toLowerCase().trim();
-  const matches = parsedSections.filter(section => 
-    section.title.toLowerCase().includes(cleanQuery) || 
+  const matches = parsedSections.filter(section =>
+    section.title.toLowerCase().includes(cleanQuery) ||
     section.body.toLowerCase().includes(cleanQuery)
   );
-  
+
   if (matches.length === 0) {
     resultsDiv.innerHTML = '<div style="font-size: 12px; color: var(--text-muted); padding: 8px;">No matches found.</div>';
     resultsDiv.style.display = 'block';
     return;
   }
-  
+
   let html = '';
   matches.forEach(match => {
     const bodyLower = match.body.toLowerCase();
@@ -204,7 +204,7 @@ function searchMorbidityStandards(query) {
     } else {
       snippet = match.body.substring(0, 100).replace(/\n/g, ' ') + '...';
     }
-    
+
     html += `
       <div class="search-result-item" data-id="${match.id}">
         <div class="search-result-title">${escapeHTML(match.title)}</div>
@@ -212,10 +212,10 @@ function searchMorbidityStandards(query) {
       </div>
     `;
   });
-  
+
   resultsDiv.innerHTML = html;
   resultsDiv.style.display = 'block';
-  
+
   // Bind click listeners to results to scroll rule explorer
   resultsDiv.querySelectorAll('.search-result-item').forEach(item => {
     item.addEventListener('click', () => {
@@ -242,30 +242,30 @@ function searchIcd10Codes(query) {
     return;
   }
 
-  const cleanQuery = query.toLowerCase().trim();
-  const isCodeQuery = /^[a-z][0-9]/i.test(cleanQuery);
+  // Use the SAME normalization every other lookup path (showResult, checkAgeGender,
+  // checkHighRisk, etc.) already relies on, instead of a separate ad-hoc regex/replace
+  // pair that only existed here. This is what keeps typed-format handling consistent
+  // between live validation, manual lookup, and search.
+  const rawQuery = query.trim();
+  const isCodeQuery = /^[a-z][0-9]/i.test(rawQuery);
   const matches = [];
 
   if (isCodeQuery) {
-    const normalizedQuery = cleanQuery.replace(/\./g, '').toUpperCase();
+    const normalizedQuery = normalizeCode(rawQuery).replace(/\./g, '');
     for (const key of Object.keys(icd10Index)) {
-      const normKey = key.replace(/\./g, '').toUpperCase();
+      const normKey = normalizeCode(key).replace(/\./g, '');
       if (normKey.startsWith(normalizedQuery)) {
-        if (!matches.some(m => m.code === key || m.code.replace(/\./g, '') === normKey)) {
-          matches.push({ code: key, d: icd10Index[key].d });
-          if (matches.length >= 50) break;
-        }
+        matches.push({ code: normalizeCode(key), d: icd10Index[key].d });
+        if (matches.length >= 50) break;
       }
     }
   } else {
+    const cleanQuery = rawQuery.toLowerCase();
     for (const key of Object.keys(icd10Index)) {
       const desc = (icd10Index[key].d || '').toLowerCase();
       if (desc.includes(cleanQuery)) {
-        const normKey = key.replace(/\./g, '').toUpperCase();
-        if (!matches.some(m => m.code === key || m.code.replace(/\./g, '') === normKey)) {
-          matches.push({ code: key, d: icd10Index[key].d });
-          if (matches.length >= 50) break;
-        }
+        matches.push({ code: normalizeCode(key), d: icd10Index[key].d });
+        if (matches.length >= 50) break;
       }
     }
   }
@@ -278,9 +278,16 @@ function searchIcd10Codes(query) {
 
   let html = '';
   matches.forEach(match => {
+    // Surface PMB eligibility here too, using the exact same pmbIndex showResult
+    // reads from, so a code flagged PMB-eligible elsewhere shows that here as well
+    // instead of search silently disagreeing with the rest of the extension.
+    const pmbMatch = lookupIndex(pmbIndex, match.code);
+    const pmbBadge = pmbMatch
+      ? `<span style="display:inline-block; margin-left:6px; font-size:10px; font-weight:700; color:var(--primary); border:1px solid var(--primary); border-radius:999px; padding:1px 6px;">PMB</span>`
+      : '';
     html += `
       <div class="search-result-item" data-code="${escapeHTML(match.code)}">
-        <div class="search-result-title">${escapeHTML(match.code)}</div>
+        <div class="search-result-title">${escapeHTML(formatCodeForDisplay(match.code))}${pmbBadge}</div>
         <div class="search-result-snippet">${escapeHTML(match.d)}</div>
       </div>
     `;
@@ -293,14 +300,12 @@ function searchIcd10Codes(query) {
   resultsDiv.querySelectorAll('.search-result-item').forEach(item => {
     item.addEventListener('click', () => {
       const code = item.getAttribute('data-code');
+      // Switch to scan tab so the result card is visible
       const tabScan = document.getElementById('tab-scan');
-      if (tabScan) {
-        tabScan.click();
-      }
+      if (tabScan) tabScan.click();
+      // Hide claim preview to avoid stale context
       const previewCard = document.getElementById('claim-preview-card');
-      if (previewCard) {
-        previewCard.style.display = 'none';
-      }
+      if (previewCard) previewCard.style.display = 'none';
       showResult(code);
     });
   });
@@ -310,7 +315,7 @@ function searchIcd10Codes(query) {
 function getExcerptForFinding(finding) {
   let ruleCode = null;
   const msg = (finding.message || '').toUpperCase();
-  
+
   if (finding.type === 'PRIMARY_ERROR') ruleCode = 'GSN0001';
   else if (finding.type === 'PAIRING_ERROR') ruleCode = 'GSN0010';
   else if (finding.type === 'SEQUENCE_ERROR') ruleCode = 'GSN0010';
@@ -336,6 +341,17 @@ function getExcerptForFinding(finding) {
 
 const normalizeCode = window.ClaimAiUtils.normalizeCode;
 const getCodeVariants = window.ClaimAiUtils.buildLookupVariants;
+
+// normalizeCode() preserves any decimal point already present in the code
+// (e.g. "E11.8" -> "E11.8", "e118" -> "E118"). For display we always want
+// the standard dotted ICD-10 notation ("E11.8"), so we strip dots first,
+// then re-insert the dot after the 3-character category.
+function formatCodeForDisplay(code) {
+  const clean = normalizeCode(code);
+  if (!clean) return clean;
+  const undotted = clean.replace(/\./g, '');
+  return undotted.length > 3 ? `${undotted.slice(0, 3)}.${undotted.slice(3)}` : undotted;
+}
 
 function lookupIndex(index, code) {
   for (const variant of getCodeVariants(code)) {
@@ -405,7 +421,7 @@ function matchesRuleCode(actualCode, ruleCode) {
 
 function checkHighRisk(code, activeCodes) {
   const cleanCode = normalizeCode(code);
-  const applicableRules = highRiskPairs.filter(rule => 
+  const applicableRules = highRiskPairs.filter(rule =>
     rule.codes.some(rc => matchesRuleCode(cleanCode, rc))
   );
 
@@ -415,7 +431,7 @@ function checkHighRisk(code, activeCodes) {
     const otherRuleCodes = rule.codes.filter(rc => !matchesRuleCode(cleanCode, rc));
     let conflictPresent = false;
     let conflictingActiveCode = null;
-    
+
     for (const active of activeCodes) {
       const cleanActive = normalizeCode(active);
       if (cleanActive !== cleanCode && otherRuleCodes.some(orc => matchesRuleCode(cleanActive, orc))) {
@@ -431,7 +447,7 @@ function checkHighRisk(code, activeCodes) {
 
 function escapeHTML(str) {
   if (!str) return '';
-  return String(str).replace(/[&<>'"]/g, 
+  return String(str).replace(/[&<>'"]/g,
     tag => ({
       '&': '&amp;',
       '<': '&lt;',
@@ -493,11 +509,11 @@ async function checkTabPermission() {
 
 async function showResult(code) {
   const resultDiv = document.getElementById('result');
-  
+
   // Track lookup feature usage
   try {
     window.ClaimAiTelemetry.trackFeatureUse('lookup');
-  } catch (e) {}
+  } catch (e) { }
 
   // Hide current result card if it's there
   const codeCard = document.getElementById('code-card');
@@ -541,7 +557,7 @@ async function showResult(code) {
     console.error('ClaimAi: Database query failed during showResult:', err);
     try {
       window.ClaimAiTelemetry.trackFeatureUse('error');
-    } catch (e) {}
+    } catch (e) { }
   }
 
   const daData = lookupIndex(daggerAsteriskIndex, cleanCode + '*') || lookupIndex(daggerAsteriskIndex, cleanCode);
@@ -569,27 +585,27 @@ async function showResult(code) {
   const description = icdData?.d || pmbData?.pmbDescription || pmbData?.icdDescription || (ecCheck ? `Injury Category: ${ecCheck.category}` : 'No description available.');
 
   if (icdData || pmbData || daData) {
-    html += `<div class="code">${escapeHTML(cleanCode)}</div>`;
+    html += `<div class="code">${escapeHTML(formatCodeForDisplay(cleanCode))}</div>`;
     if (!icdData && !pmbData && daData) {
-       html += `<p class="description-text">${escapeHTML(daData.note || 'Dagger/Asterisk manifestation code.')}</p>`;
-       html += `<div class="mt-3 text-emerald-400 text-sm font-semibold">✓ VALID DAGGER PAIR</div>`;
+      html += `<p class="description-text">${escapeHTML(daData.note || 'Dagger/Asterisk manifestation code.')}</p>`;
+      html += `<div class="mt-3 text-emerald-400 text-sm font-semibold">✓ VALID DAGGER PAIR</div>`;
     } else {
-       html += `<p class="description-text">${escapeHTML(description)}</p>`;
-       html += `<div class="mt-3 text-emerald-400 text-sm font-semibold">✓ VALID ICD-10 Code${pmbData ? ' · PMB eligible' : ''}</div>`;
+      html += `<p class="description-text">${escapeHTML(description)}</p>`;
+      html += `<div class="mt-3 text-emerald-400 text-sm font-semibold">✓ VALID ICD-10 Code${pmbData ? ' · PMB eligible' : ''}</div>`;
     }
   } else if (ecCheck) {
-    html += `<div class="code text-blue-400">${escapeHTML(cleanCode)}</div>`;
+    html += `<div class="code text-blue-400">${escapeHTML(formatCodeForDisplay(cleanCode))}</div>`;
     html += `<p class="description-text">${escapeHTML(description)}</p>`;
     html += `<div class="mt-3 text-blue-400 text-sm font-semibold">ℹ️ Incomplete Code (Category)</div>`;
   } else {
     try {
       window.ClaimAiTelemetry.trackFeatureUse('error');
-    } catch (e) {}
+    } catch (e) { }
     html += `
       <div class="error-title-container">
         <span>⚠️ Code Not Found</span>
       </div>
-      <div class="code text-amber-400">${escapeHTML(cleanCode)}</div>
+      <div class="code text-amber-400">${escapeHTML(formatCodeForDisplay(cleanCode))}</div>
       <p class="error-desc">No matching South African ICD-10 clinical diagnostic code was found in the database. Please verify the characters and try again.</p>
     `;
   }
@@ -628,14 +644,14 @@ async function showResult(code) {
   if (hrCheck && hrCheck.length > 0) {
     html += `<div class="alert-box warning">`;
     html += `<div class="alert-title">⚠️ HIGH RISK BILLING PAIR</div>`;
-    
+
     hrCheck.forEach(item => {
       if (item.conflictPresent) {
-         html += `<div class="alert-content mb-2">🔥 <b>CONFLICT DETECTED:</b> This code conflicts with active code <b>${escapeHTML(item.conflictingActiveCode)}</b>.</div>`;
-         html += `<div class="alert-content">Reason: ${escapeHTML(item.rule.reason)}</div>`;
+        html += `<div class="alert-content mb-2">🔥 <b>CONFLICT DETECTED:</b> This code conflicts with active code <b>${escapeHTML(item.conflictingActiveCode)}</b>.</div>`;
+        html += `<div class="alert-content">Reason: ${escapeHTML(item.rule.reason)}</div>`;
       } else {
-         html += `<div class="alert-content mb-2">Avoid billing with: <b>${escapeHTML(item.otherRuleCodes.join(', '))}</b></div>`;
-         html += `<div class="alert-content">Reason: ${escapeHTML(item.rule.reason)}</div>`;
+        html += `<div class="alert-content mb-2">Avoid billing with: <b>${escapeHTML(item.otherRuleCodes.join(', '))}</b></div>`;
+        html += `<div class="alert-content">Reason: ${escapeHTML(item.rule.reason)}</div>`;
       }
     });
     html += `</div>`;
@@ -766,7 +782,7 @@ function updateClaimLinePreview(formatValidation, submissionPreview, sequenceVal
   const card = document.getElementById('claim-preview-card');
   const previewText = document.getElementById('claim-preview-text');
   const previewStatus = document.getElementById('claim-preview-status');
-  
+
   if (!card || !previewText || !previewStatus) return;
 
   if (!submissionPreview) {
@@ -776,7 +792,7 @@ function updateClaimLinePreview(formatValidation, submissionPreview, sequenceVal
 
   card.style.display = 'block';
   previewText.textContent = submissionPreview;
-  
+
   let html = '';
 
   // 1. Formatting Warnings
@@ -872,7 +888,7 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
     // Hide preview on manual selected code rendering
     const card = document.getElementById('claim-preview-card');
     if (card) card.style.display = 'none';
-    
+
     if (dataLoaded) {
       showResult(msg.code);
     } else {
@@ -991,7 +1007,7 @@ function updateTelemetryUI() {
         payloadPre.textContent = JSON.stringify(data, null, 2);
       }
     });
-  } catch (e) {}
+  } catch (e) { }
 }
 
 // Sync telemetry UI on storage updates (local aggregation changes)
@@ -1001,5 +1017,4 @@ try {
       updateTelemetryUI();
     }
   });
-} catch (e) {}
-
+} catch (e) { }
